@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emotional Infrastructure Middleware</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Emotional Infrastructure Middleware</h1>
+    <p>The compliance &amp; safety layer for AI conversations.</p>
+  </header>
+  <main>
+    <section class="panel">
+      <h2>Live demo</h2>
+      <p class="muted">
+        Every message you send is run through <code>POST /v1/turn</code>. The middleware
+        scores the emotional tone, checks for crisis/abuse language and PII, and returns a
+        moderation decision plus a system directive an upstream LLM call should be steered by.
+      </p>
+
+      <label class="field">
+        API base URL
+        <input id="api-base" type="text" value="http://localhost:8787" spellcheck="false">
+      </label>
+      <label class="field">
+        Session ID
+        <input id="session-id" type="text" value="demo-123" spellcheck="false">
+      </label>
+
+      <div id="log" class="log" aria-live="polite"></div>
+
+      <form id="turn-form" class="composer">
+        <input id="user-message" type="text" placeholder="Type a message..." autocomplete="off" required>
+        <button type="submit">Send</button>
+      </form>
+
+      <div id="session-panel" class="session-panel hidden">
+        <h3>Session state</h3>
+        <dl>
+          <dt>Turns</dt><dd id="s-turns">0</dd>
+          <dt>Trend</dt><dd id="s-trend">-</dd>
+          <dt>Crisis turns</dt><dd id="s-crisis">0</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Quickstart</h2>
+      <pre><code>curl -X POST http://localhost:8787/v1/turn \
+  -H "Content-Type: application/json" \
+  -d '{"session_id": "demo-123", "user_message": "Hello"}'</code></pre>
+      <p class="muted">Run the worker locally with <code>npm run dev</code> inside <code>middleware-worker/</code>, or deploy it with <code>npm run deploy</code> (Cloudflare Workers).</p>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

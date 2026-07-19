@@ -1,0 +1,6 @@
+name = "emotional-infra-middleware"
+main = "index.js"
+compatibility_date = "2023-09-19"
+
+# API_KEY is optional. Unset -> demo mode (no auth required on /v1/turn).
+# Set with: wrangler secret put API_KEY

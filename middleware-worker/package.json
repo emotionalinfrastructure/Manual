@@ -1,0 +1,17 @@
+{
+  "name": "emotional-infra-middleware",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker for Emotional Infrastructure Middleware",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "wrangler dev",
+    "dev": "node dev-server.mjs",
+    "deploy": "wrangler deploy",
+    "test": "node --test"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "wrangler": "^3.78.0"
+  }
+}
