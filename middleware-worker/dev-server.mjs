@@ -6,7 +6,11 @@ import http from "node:http";
 import worker from "./index.js";
 
 const PORT = process.env.PORT || 8787;
-const env = { API_KEY: process.env.API_KEY || "" };
+const env = {
+  API_KEY: process.env.API_KEY || "",
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
+  ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL || "",
+};
 
 const server = http.createServer(async (req, res) => {
   const chunks = [];

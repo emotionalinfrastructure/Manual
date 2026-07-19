@@ -64,6 +64,48 @@ test("missing user_message is rejected", async () => {
   assert.equal(res.status, 400);
 });
 
+test("without ANTHROPIC_API_KEY, replies fall back to a simulated, action-aware response", async () => {
+  const res = await worker.fetch(turnRequest("t7", "I want to kill myself"), env);
+  const body = await res.json();
+  assert.equal(body.llm_backend, "simulated");
+  assert.ok(body.assistant_reply.includes("988"));
+});
+
+test("with ANTHROPIC_API_KEY, the worker calls the LLM and returns its reply", async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+  globalThis.fetch = async (url, init) => {
+    assert.equal(url, "https://api.anthropic.com/v1/messages");
+    const payload = JSON.parse(init.body);
+    assert.ok(payload.system.includes("empathy")); // negative-sentiment directive got injected
+    return new Response(JSON.stringify({ content: [{ text: "Mocked model reply." }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  const res = await worker.fetch(turnRequest("t8", "I feel so sad and hopeless today"), {
+    ANTHROPIC_API_KEY: "test-key",
+  });
+  const body = await res.json();
+  assert.equal(body.llm_backend, "anthropic");
+  assert.equal(body.assistant_reply, "Mocked model reply.");
+});
+
+test("conversation history accumulates across turns for LLM context", async () => {
+  const sessionId = "t9";
+  await worker.fetch(turnRequest(sessionId, "hello there"), env);
+  await worker.fetch(turnRequest(sessionId, "how are you"), env);
+
+  const res = await worker.fetch(new Request(`${BASE}/v1/session/${sessionId}`), env);
+  const body = await res.json();
+  assert.equal(body.messages.length, 4); // 2 user + 2 assistant
+  assert.equal(body.messages[0].role, "user");
+  assert.equal(body.messages[1].role, "assistant");
+});
+
 test("API_KEY enforcement rejects missing/incorrect bearer token", async () => {
   const securedEnv = { API_KEY: "secret" };
   const res = await worker.fetch(turnRequest("t6", "hello"), securedEnv);

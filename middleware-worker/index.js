@@ -1,11 +1,13 @@
 import { analyzeMessage } from "./lexicon.js";
 import { decidePolicy, summarizeTrend } from "./policy.js";
+import { generateReply } from "./llm.js";
 
 // In-memory session store. Good enough for a single-isolate demo; a real
 // deployment would back this with a Durable Object or KV so state survives
 // across isolates/requests. See README for the upgrade path.
 const sessions = new Map();
 const MAX_HISTORY = 20;
+const MAX_MESSAGES = 20; // 10 user/assistant turns of LLM context
 
 function getSession(sessionId) {
   if (!sessions.has(sessionId)) {
@@ -13,6 +15,7 @@ function getSession(sessionId) {
       turnCount: 0,
       sentimentHistory: [],
       crisisTurnCount: 0,
+      messages: [],
       createdAt: new Date().toISOString(),
       lastTurnAt: null,
     });
@@ -64,10 +67,22 @@ async function handleTurn(request, env) {
 
   const policy = decidePolicy(analysis, session);
 
+  const reply = await generateReply({
+    apiKey: env.ANTHROPIC_API_KEY,
+    model: env.ANTHROPIC_MODEL,
+    systemDirective: policy.system_directive,
+    action: policy.action,
+    history: session.messages,
+    userMessage: user_message,
+  });
+
   session.turnCount += 1;
   session.sentimentHistory.push(analysis.sentiment_score);
   if (session.sentimentHistory.length > MAX_HISTORY) session.sentimentHistory.shift();
   if (analysis.flags.includes("crisis_language")) session.crisisTurnCount += 1;
+  session.messages.push({ role: "user", content: user_message });
+  session.messages.push({ role: "assistant", content: reply.text });
+  if (session.messages.length > MAX_MESSAGES) session.messages = session.messages.slice(-MAX_MESSAGES);
   session.lastTurnAt = new Date().toISOString();
 
   return json({
@@ -85,6 +100,9 @@ async function handleTurn(request, env) {
     },
     suggested_system_directive: policy.system_directive,
     session_trend: summarizeTrend(session.sentimentHistory),
+    assistant_reply: reply.text,
+    llm_backend: reply.backend,
+    ...(reply.note ? { llm_note: reply.note } : {}),
   });
 }
 
@@ -99,6 +117,7 @@ function handleGetSession(sessionId) {
     crisis_turn_count: session.crisisTurnCount,
     sentiment_history: session.sentimentHistory,
     trend: summarizeTrend(session.sentimentHistory),
+    messages: session.messages,
     created_at: session.createdAt,
     last_turn_at: session.lastTurnAt,
   });

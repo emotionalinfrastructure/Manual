@@ -2,8 +2,9 @@
 
 A compliance & safety layer that sits between a chat UI and an LLM. On every
 turn it scores the user's message for emotional tone and safety risk, decides
-whether the conversation needs to be softened or escalated, and returns a
-system directive the upstream LLM call should be steered by.
+whether the conversation needs to be softened or escalated, builds a system
+directive from that decision, and uses it to steer the actual model call that
+generates the reply.
 
 ```
 frontend/            Static demo chat UI (vanilla HTML/CSS/JS)
@@ -21,7 +22,9 @@ middleware-worker/    Cloudflare Worker implementing POST /v1/turn
   "emotional_state": { "sentiment_score": -0.8, "primary_emotion": "sadness", "intensity": 0.6 },
   "safety": { "flags": ["crisis_language"], "action": "escalate", "severity": "high" },
   "suggested_system_directive": "The user's message contains language associated with self-harm...",
-  "session_trend": "declining"
+  "session_trend": "declining",
+  "assistant_reply": "I want to make sure you're safe first...",
+  "llm_backend": "anthropic"
 }
 ```
 
@@ -31,9 +34,16 @@ middleware-worker/    Cloudflare Worker implementing POST /v1/turn
   `soften` / `escalate` decision and the directive text to inject ahead of the
   LLM's system prompt. Also escalates a session that has raised crisis
   language more than once, even if a single message wouldn't trip it alone.
+- **`middleware-worker/llm.js`** — actually generates the reply: builds the
+  system prompt (base persona + injected directive) and calls the Anthropic
+  Messages API with the session's conversation history. If no
+  `ANTHROPIC_API_KEY` is configured, it falls back to a deterministic,
+  action-aware simulated reply (still distinct per `allow`/`soften`/`escalate`)
+  so the full pipeline runs with zero external dependencies.
 - **`middleware-worker/index.js`** — the Worker's HTTP surface (`/v1/turn`,
   `/v1/session/:id`, CORS, optional `API_KEY` bearer auth) plus in-memory
-  per-session history (turn count, sentiment trend, crisis count).
+  per-session state (turn count, sentiment trend, crisis count, and the
+  message history used as LLM context).
 
 This is a demo-grade rule engine, not a clinical risk model — the crisis
 phrase list is narrow and literal by design. A production deployment should
@@ -72,7 +82,21 @@ curl http://localhost:8787/v1/session/demo-123
 
 Try messages like `"I feel so sad and hopeless"` (soften), `"I want to kill
 myself"` (escalate, with crisis resources injected into the directive), and
-`"Thanks, that worked great!"` (allow) to see the different moderation paths.
+`"Thanks, that worked great!"` (allow) to see the different moderation paths
+and how each one changes the assistant's actual reply.
+
+### Using a real model
+
+Without any key set, `assistant_reply` comes from a simulated, action-aware
+fallback (`llm_backend: "simulated"`) so the demo works standalone. To have
+the middleware actually call Claude:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-... npm run dev
+```
+
+Responses will come back with `llm_backend: "anthropic"`. `ANTHROPIC_MODEL`
+is also configurable (defaults to `claude-sonnet-5`).
 
 ## Deploy
 
@@ -81,7 +105,8 @@ myself"` (escalate, with crisis resources injected into the directive), and
 ```bash
 cd middleware-worker
 npx wrangler deploy
-npx wrangler secret put API_KEY   # optional; unset = demo mode, no auth required
+npx wrangler secret put API_KEY             # optional; unset = demo mode, no auth required
+npx wrangler secret put ANTHROPIC_API_KEY   # optional; unset = simulated replies
 ```
 
 Point `frontend/index.html`'s API base URL field at the deployed Worker URL,

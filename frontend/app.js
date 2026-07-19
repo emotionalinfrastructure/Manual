@@ -20,6 +20,22 @@ function appendMessage(role, content) {
   return el;
 }
 
+function appendReply(result) {
+  const el = document.createElement("div");
+  el.className = "msg msg-assistant";
+  el.textContent = result.assistant_reply;
+
+  if (result.llm_backend === "simulated") {
+    const note = document.createElement("div");
+    note.className = "backend-note";
+    note.textContent = "simulated reply — set ANTHROPIC_API_KEY on the worker for a real model";
+    el.appendChild(note);
+  }
+
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+}
+
 function appendAnalysis(result) {
   const el = document.createElement("div");
   el.className = `msg msg-analysis action-${result.safety.action}`;
@@ -74,6 +90,7 @@ form.addEventListener("submit", async (event) => {
 
     const result = await res.json();
     appendAnalysis(result);
+    appendReply(result);
     updateSessionPanel(result);
   } catch (err) {
     appendMessage(
