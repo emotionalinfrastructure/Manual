@@ -1,0 +1,13 @@
+name = "emotional-infra-middleware"
+main = "index.js"
+compatibility_date = "2023-09-19"
+
+# API_KEY is optional. Unset -> demo mode (no auth required on /v1/turn).
+# Set with: wrangler secret put API_KEY
+
+# ANTHROPIC_API_KEY is optional. Unset -> replies are simulated locally
+# (still action-aware) instead of calling a real model.
+# Set with: wrangler secret put ANTHROPIC_API_KEY
+
+[vars]
+ANTHROPIC_MODEL = "claude-sonnet-5"
