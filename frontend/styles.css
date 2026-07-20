@@ -1,40 +1,56 @@
-body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f9fafb; color: #1f2937; }
-header { background: #2563eb; color: white; padding: 2rem; text-align: center; }
-header p { margin: 0.5rem 0 0; opacity: 0.9; }
+/* Emotional Infrastructure Signature Palette — see /CLAUDE.md */
+:root {
+  --navy: #101C2C;       /* Governance Navy — dominant institutional color */
+  --navy-soft: #1B2C42;  /* lighter navy for hover/secondary surfaces */
+  --teal: #176B73;       /* Infrastructure Teal — secondary systems/trust color */
+  --teal-dark: #124F55;
+  --copper: #C46A3A;     /* Signal Copper — limited signature accent */
+  --copper-dark: #A6552B;
+  --ivory: #F5F1E8;      /* Warm Ivory — editorial background */
+  --slate: #5E6873;      /* secondary text / metadata */
+  --graphite: #20252B;   /* primary body text */
+  --white: #FFFFFF;
+  --hair: #DDD6C6;       /* hairline border on ivory */
+}
+
+body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: var(--ivory); color: var(--graphite); }
+header { background: var(--navy); color: var(--white); padding: 2rem; text-align: center; border-bottom: 3px solid var(--copper); }
+header p { margin: 0.5rem 0 0; opacity: 0.85; color: #C8D0DE; }
 main { padding: 2rem; max-width: 720px; margin: 0 auto; }
 
-.panel { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
-.muted { color: #6b7280; font-size: 0.9rem; }
-code { background: #f3f4f6; padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.85em; }
-pre { background: #111827; color: #e5e7eb; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+.panel { background: var(--white); border: 1px solid var(--hair); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+.muted { color: var(--slate); font-size: 0.9rem; }
+code { background: var(--ivory); padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.85em; }
+pre { background: var(--graphite); color: var(--ivory); padding: 1rem; border-radius: 6px; overflow-x: auto; }
 pre code { background: none; padding: 0; }
 
-.field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: #374151; margin-bottom: 0.75rem; }
-.field input { padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem; }
+.field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--graphite); margin-bottom: 0.75rem; }
+.field input { padding: 0.5rem; border: 1px solid #CBC2AE; border-radius: 6px; font-size: 0.9rem; background: var(--white); color: var(--graphite); }
+.field input:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(23, 107, 115, 0.15); }
 
-.log { display: flex; flex-direction: column; gap: 0.5rem; min-height: 4rem; max-height: 24rem; overflow-y: auto; margin: 1rem 0; padding: 0.5rem; background: #f9fafb; border-radius: 6px; }
+.log { display: flex; flex-direction: column; gap: 0.5rem; min-height: 4rem; max-height: 24rem; overflow-y: auto; margin: 1rem 0; padding: 0.5rem; background: var(--ivory); border-radius: 6px; }
 .msg { padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.9rem; max-width: 90%; }
-.msg-user { align-self: flex-end; background: #2563eb; color: white; }
-.msg-error { background: #fee2e2; color: #991b1b; }
-.msg-analysis { background: #f3f4f6; border: 1px solid #e5e7eb; }
-.msg-analysis.action-soften { border-color: #f59e0b; }
-.msg-analysis.action-escalate { border-color: #dc2626; background: #fef2f2; }
+.msg-user { align-self: flex-end; background: var(--teal); color: var(--white); }
+.msg-error { background: #FBE7E1; color: var(--copper-dark); }
+.msg-analysis { background: var(--white); border: 1px solid var(--hair); }
+.msg-analysis.action-soften { border-color: var(--copper); }
+.msg-analysis.action-escalate { border-color: var(--copper-dark); background: #FBEDE5; }
 .analysis-details { margin-top: 0.4rem; display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
 
-.msg-assistant { align-self: flex-start; background: #ecfdf5; border: 1px solid #a7f3d0; }
-.backend-note { margin-top: 0.4rem; font-size: 0.75rem; color: #6b7280; font-style: italic; }
+.msg-assistant { align-self: flex-start; background: #EAF2F1; border: 1px solid #BFDBD9; }
+.backend-note { margin-top: 0.4rem; font-size: 0.75rem; color: var(--slate); font-style: italic; }
 
-.badge { display: inline-block; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.15rem 0.5rem; border-radius: 999px; background: #e5e7eb; color: #374151; }
-.action-soften .badge { background: #fef3c7; color: #92400e; }
-.action-escalate .badge { background: #fee2e2; color: #991b1b; }
+.badge { display: inline-block; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.15rem 0.5rem; border-radius: 999px; background: var(--ivory); color: var(--slate); }
+.action-soften .badge { background: #F2DFCC; color: var(--copper-dark); }
+.action-escalate .badge { background: #EFC9B6; color: var(--copper-dark); }
 
 .composer { display: flex; gap: 0.5rem; }
-.composer input { flex: 1; padding: 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; }
-.composer button { padding: 0.6rem 1.2rem; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
-.composer button:hover { background: #1d4ed8; }
+.composer input { flex: 1; padding: 0.6rem; border: 1px solid #CBC2AE; border-radius: 6px; background: var(--white); color: var(--graphite); }
+.composer button { padding: 0.6rem 1.2rem; background: var(--teal); color: var(--white); border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+.composer button:hover { background: var(--teal-dark); }
 
-.session-panel { margin-top: 1rem; border-top: 1px solid #e5e7eb; padding-top: 1rem; }
+.session-panel { margin-top: 1rem; border-top: 1px solid var(--hair); padding-top: 1rem; }
 .session-panel.hidden { display: none; }
 .session-panel dl { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 1rem; margin: 0; font-size: 0.9rem; }
-.session-panel dt { color: #6b7280; }
-.session-panel dd { margin: 0; font-weight: bold; }
+.session-panel dt { color: var(--slate); }
+.session-panel dd { margin: 0; font-weight: bold; color: var(--graphite); }
