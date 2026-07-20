@@ -1,0 +1,82 @@
+{
+  "name": "@emotional-infrastructure/sdk",
+  "version": "0.2.0",
+  "description": "Emotional Infrastructure\u2122 Standard SDK for consent lifecycle management, audit traceability, tolerance windows, and trust repair in adaptive AI systems.",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./consent": {
+      "types": "./dist/consent/index.d.ts",
+      "import": "./dist/consent/index.mjs",
+      "require": "./dist/consent/index.cjs"
+    },
+    "./audit": {
+      "types": "./dist/audit/index.d.ts",
+      "import": "./dist/audit/index.mjs",
+      "require": "./dist/audit/index.cjs"
+    },
+    "./repair": {
+      "types": "./dist/repair/index.d.ts",
+      "import": "./dist/repair/index.mjs",
+      "require": "./dist/repair/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "jest --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "docs": "typedoc --out docs src",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run build",
+    "prepublishOnly": "npm run verify"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.17",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.3.3",
+    "tsup": "^8.0.1",
+    "typedoc": "^0.25.4"
+  },
+  "keywords": [
+    "emotional-infrastructure",
+    "ai-governance",
+    "consent",
+    "audit",
+    "trust",
+    "behavioral-signals",
+    "ethical-ai"
+  ],
+  "author": "Brittany Wright",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/emotional-infrastructure/sdk"
+  },
+  "homepage": "https://github.com/emotional-infrastructure/sdk#readme",
+  "bugs": {
+    "url": "https://github.com/emotional-infrastructure/sdk/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "sideEffects": false
+}

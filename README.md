@@ -9,7 +9,28 @@ generates the reply.
 ```
 frontend/            Static demo chat UI + admin console (vanilla HTML/CSS/JS)
 middleware-worker/    Cloudflare Worker implementing POST /v1/turn
+sdk/                  @emotional-infrastructure/sdk -- standalone TypeScript governance library
 ```
+
+## SDK
+
+`sdk/` is `@emotional-infrastructure/sdk` (v0.2.0, release candidate): a
+standalone TypeScript library for consent lifecycle management (Consent Token
+IDs, state machine, tolerance windows), audit traceability (append-only
+event ledger, trace validation), and trust repair workflows. It's an
+independent package from the middleware below -- see `sdk/README.md` for
+its own install/quick-start/architecture docs, and
+`sdk/docs/release-package/npm/RELEASE_CHECKLIST.md` for what's left before
+publishing to npm. Verify it locally with:
+
+```bash
+cd sdk
+npm ci
+npm run typecheck && npm run lint && npm test && npm run build && npm pack --dry-run
+```
+
+CI for this package runs from `.github/workflows/sdk-ci.yml`, scoped to
+changes under `sdk/`.
 
 ## How it works
 
