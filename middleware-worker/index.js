@@ -2,6 +2,7 @@ import { analyzeMessage } from "./lexicon.js";
 import { decidePolicy, summarizeTrend } from "./policy.js";
 import { generateReply } from "./llm.js";
 import { aiUseInventory, disclosureReview, qaFindings, releaseChecklist } from "./governance.js";
+import { evaluateConformance, REQUIREMENTS, HARD_GATES_C2_C3 } from "./trustReceipt.js";
 
 // In-memory session store. Good enough for a single-isolate demo; a real
 // deployment would back this with a Durable Object or KV so state survives
@@ -185,6 +186,33 @@ const GOVERNANCE_STORES = {
   "qa-findings": qaFindings,
 };
 
+// AI Trust Receipt: Conformance Decision Protocol (R1-R12). Stateless --
+// evaluateConformance() is a pure function, so there's nothing to store here.
+function handleTrustReceiptRequirements() {
+  return json({ requirements: REQUIREMENTS, hard_gates_c2_c3: HARD_GATES_C2_C3 });
+}
+
+async function handleTrustReceiptEvaluate(request) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "invalid_json" }, { status: 400 });
+  }
+  try {
+    const result = evaluateConformance({
+      consequenceClass: body?.consequence_class,
+      requirements: body?.requirements,
+      evidenceUnavailable: body?.evidence_unavailable,
+      receiptRequired: body?.receipt_required,
+      rationaleApproved: body?.rationale_approved,
+    });
+    return json(result);
+  } catch (err) {
+    return json({ error: err.message }, { status: 400 });
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -209,6 +237,8 @@ export default {
           "PATCH|DELETE /v1/governance/qa-findings/:id",
           "GET /v1/governance/release-checklist",
           "PATCH /v1/governance/release-checklist/:id",
+          "GET /v1/trust-receipt/requirements",
+          "POST /v1/trust-receipt/evaluate",
         ],
       });
     }
@@ -222,9 +252,14 @@ export default {
       return handleGetSession(decodeURIComponent(sessionMatch[1]));
     }
 
-    // Everything below is console/admin surface: live session list and the
-    // governance record-keeping instruments. Gated the same way as /v1/turn.
-    if (url.pathname.startsWith("/v1/sessions") || url.pathname.startsWith("/v1/governance/")) {
+    // Everything below is console/admin surface: live session list, the
+    // governance record-keeping instruments, and the Trust Receipt conformance
+    // evaluator. Gated the same way as /v1/turn.
+    if (
+      url.pathname.startsWith("/v1/sessions") ||
+      url.pathname.startsWith("/v1/governance/") ||
+      url.pathname.startsWith("/v1/trust-receipt/")
+    ) {
       if (!authorized(request, env)) {
         return json({ error: "unauthorized" }, { status: 401 });
       }
@@ -258,6 +293,14 @@ export default {
     const itemMatch = url.pathname.match(/^\/v1\/governance\/([^/]+)\/([^/]+)$/);
     if (itemMatch && GOVERNANCE_STORES[itemMatch[1]]) {
       return handleGovernanceItem(request, GOVERNANCE_STORES[itemMatch[1]], decodeURIComponent(itemMatch[2]));
+    }
+
+    if (url.pathname === "/v1/trust-receipt/requirements" && request.method === "GET") {
+      return handleTrustReceiptRequirements();
+    }
+
+    if (url.pathname === "/v1/trust-receipt/evaluate" && request.method === "POST") {
+      return handleTrustReceiptEvaluate(request);
     }
 
     return json({ error: "not_found" }, { status: 404 });

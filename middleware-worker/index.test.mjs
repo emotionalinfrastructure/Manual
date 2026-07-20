@@ -177,6 +177,47 @@ test("governance: unknown governance collection returns 404", async () => {
   assert.equal(res.status, 404);
 });
 
+test("trust receipt: GET /v1/trust-receipt/requirements returns the R1-R12 catalog", async () => {
+  const res = await worker.fetch(new Request(`${BASE}/v1/trust-receipt/requirements`), env);
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(Object.keys(body.requirements).length, 12);
+  assert.deepEqual(body.hard_gates_c2_c3, ["R1", "R2", "R4", "R8", "R10", "R11", "R12"]);
+});
+
+test("trust receipt: POST /v1/trust-receipt/evaluate runs the conformance decision protocol", async () => {
+  const res = await worker.fetch(
+    new Request(`${BASE}/v1/trust-receipt/evaluate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ consequence_class: "C2", requirements: { R4: "partial" } }),
+    }),
+    env
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.overall, "conditional");
+  assert.equal(body.mode, "manual_control");
+});
+
+test("trust receipt: an invalid consequence class is rejected with 400", async () => {
+  const res = await worker.fetch(
+    new Request(`${BASE}/v1/trust-receipt/evaluate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ consequence_class: "C9", requirements: {} }),
+    }),
+    env
+  );
+  assert.equal(res.status, 400);
+});
+
+test("trust receipt: requires the API key when one is set", async () => {
+  const securedEnv = { API_KEY: "secret" };
+  const res = await worker.fetch(new Request(`${BASE}/v1/trust-receipt/requirements`), securedEnv);
+  assert.equal(res.status, 401);
+});
+
 test("governance: Release Readiness Checklist is seeded and items can be toggled", async () => {
   const listRes = await worker.fetch(new Request(`${BASE}/v1/governance/release-checklist`), env);
   const listBody = await listRes.json();

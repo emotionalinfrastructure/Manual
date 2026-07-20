@@ -32,6 +32,7 @@
       <button class="tab-btn" data-tab="disclosure-review" type="button">Disclosure Review</button>
       <button class="tab-btn" data-tab="qa-findings" type="button">QA Findings Tracker</button>
       <button class="tab-btn" data-tab="release-checklist" type="button">Release Checklist</button>
+      <button class="tab-btn" data-tab="trust-receipt" type="button">Trust Receipt Conformance</button>
     </nav>
 
     <!-- Live Sessions: ops/monitoring view of the middleware's /v1/turn traffic -->
@@ -124,6 +125,38 @@
       <div class="panel-head"><h2>Release Readiness Checklist <span class="muted">(Appendix I)</span></h2></div>
       <p class="muted">No final release should occur until every item is complete and the locked PDF has been verified against the manuscript source.</p>
       <ul id="checklist-list" class="checklist"></ul>
+    </section>
+
+    <!-- Trust Receipt Conformance Decision Protocol: Worksheet 5.4A-D -->
+    <section id="tab-trust-receipt" class="tab-panel panel">
+      <div class="panel-head"><h2>Trust Receipt Conformance <span class="muted">(Worksheet 5.4A&ndash;D)</span></h2></div>
+      <p class="muted">Noncompensatory decision protocol: a Pass on one requirement never cancels a Fail on another, and unavailable required evidence always overrides a claimed Pass.</p>
+
+      <div class="tr-controls">
+        <label class="field tr-class-field">
+          Consequence class
+          <select id="tr-consequence-class">
+            <option value="C0">C0 &mdash; no persistent external change</option>
+            <option value="C1">C1 &mdash; low, readily reversible change</option>
+            <option value="C2" selected>C2 &mdash; material change (access, money, schedule, records, another party)</option>
+            <option value="C3">C3 &mdash; high-consequence change (rights, safety, essential services)</option>
+          </select>
+        </label>
+        <label class="inline-check" id="tr-c0-exclusion-wrap">
+          <input type="checkbox" id="tr-receipt-not-required"> Receipt not required for this action (C0 exclusion, requires an approved rationale)
+        </label>
+      </div>
+
+      <div id="tr-requirements" class="table-wrap"></div>
+
+      <button id="tr-evaluate" type="button" class="btn-secondary">Evaluate</button>
+
+      <div id="tr-result" class="tr-result hidden">
+        <div class="tr-result-badges">
+          <span id="tr-overall-badge" class="decision-badge"></span>
+          <span id="tr-mode-badge" class="decision-badge"></span>
+        </div>
+      </div>
     </section>
   </main>
 

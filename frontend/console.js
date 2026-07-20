@@ -41,6 +41,7 @@ function loadTab(tab) {
   if (tab === "disclosure-review") return loadRecords("disclosure-review");
   if (tab === "qa-findings") return loadRecords("qa-findings");
   if (tab === "release-checklist") return loadChecklist();
+  if (tab === "trust-receipt") return loadTrustReceiptRequirements();
 }
 
 // ---------- Live Sessions ----------
@@ -247,6 +248,119 @@ async function loadChecklist() {
     setStatus(`Could not reach ${apiBase()}: ${err.message}`, true);
   }
 }
+
+// ---------- Trust Receipt Conformance Decision Protocol ----------
+const trRequirementsDiv = document.getElementById("tr-requirements");
+const trResult = document.getElementById("tr-result");
+const trOverallBadge = document.getElementById("tr-overall-badge");
+const trModeBadge = document.getElementById("tr-mode-badge");
+const trClassSelect = document.getElementById("tr-consequence-class");
+const trC0Checkbox = document.getElementById("tr-receipt-not-required");
+const trC0Wrap = document.getElementById("tr-c0-exclusion-wrap");
+
+let trRequirementsCatalog = null;
+
+async function loadTrustReceiptRequirements() {
+  if (trRequirementsCatalog) return renderTrustReceiptForm();
+  try {
+    const data = await apiFetch("/v1/trust-receipt/requirements");
+    trRequirementsCatalog = data.requirements;
+    setStatus("Connected · requirement catalog loaded");
+    renderTrustReceiptForm();
+  } catch (err) {
+    setStatus(`Could not reach ${apiBase()}: ${err.message}`, true);
+  }
+}
+
+function renderTrustReceiptForm() {
+  trRequirementsDiv.innerHTML = "";
+  for (const [id, req] of Object.entries(trRequirementsCatalog)) {
+    const row = document.createElement("div");
+    row.className = "tr-req-row";
+    row.dataset.reqId = id;
+
+    const head = document.createElement("div");
+    head.className = "tr-req-head";
+    head.innerHTML = `
+      <span class="tr-req-id">${id}</span>
+      <span class="tr-req-title">${escapeHtml(req.title)}</span>
+      <span class="gate-badge ${req.gate}">${req.gate}</span>
+    `;
+    row.appendChild(head);
+
+    const assertions = document.createElement("ul");
+    assertions.className = "tr-req-assertions";
+    for (const a of req.assertions) {
+      const li = document.createElement("li");
+      li.textContent = a;
+      assertions.appendChild(li);
+    }
+    row.appendChild(assertions);
+
+    const controls = document.createElement("div");
+    controls.className = "tr-req-controls";
+    const select = document.createElement("select");
+    select.className = "tr-result-select";
+    for (const opt of ["pass", "partial", "fail"]) {
+      const o = document.createElement("option");
+      o.value = opt;
+      o.textContent = opt[0].toUpperCase() + opt.slice(1);
+      select.appendChild(o);
+    }
+    const evidenceLabel = document.createElement("label");
+    evidenceLabel.className = "inline-check";
+    const evidenceCheckbox = document.createElement("input");
+    evidenceCheckbox.type = "checkbox";
+    evidenceCheckbox.className = "tr-evidence-unavailable";
+    evidenceLabel.appendChild(evidenceCheckbox);
+    evidenceLabel.appendChild(document.createTextNode(" Required evidence unavailable"));
+
+    controls.appendChild(select);
+    controls.appendChild(evidenceLabel);
+    row.appendChild(controls);
+
+    trRequirementsDiv.appendChild(row);
+  }
+}
+
+function updateC0ExclusionVisibility() {
+  trC0Wrap.classList.toggle("hidden", trClassSelect.value !== "C0");
+  if (trClassSelect.value !== "C0") trC0Checkbox.checked = false;
+}
+trClassSelect.addEventListener("change", updateC0ExclusionVisibility);
+updateC0ExclusionVisibility();
+
+document.getElementById("tr-evaluate").addEventListener("click", async () => {
+  const consequenceClass = trClassSelect.value;
+  const payload = { consequence_class: consequenceClass };
+
+  if (consequenceClass === "C0" && trC0Checkbox.checked) {
+    payload.receipt_required = false;
+    payload.rationale_approved = true;
+  } else {
+    const requirements = {};
+    const evidenceUnavailable = [];
+    document.querySelectorAll(".tr-req-row").forEach((row) => {
+      const id = row.dataset.reqId;
+      requirements[id] = row.querySelector(".tr-result-select").value;
+      if (row.querySelector(".tr-evidence-unavailable").checked) evidenceUnavailable.push(id);
+    });
+    payload.requirements = requirements;
+    payload.evidence_unavailable = evidenceUnavailable;
+  }
+
+  try {
+    const result = await apiFetch("/v1/trust-receipt/evaluate", { method: "POST", body: JSON.stringify(payload) });
+    trResult.classList.remove("hidden");
+    trOverallBadge.textContent = result.overall_label;
+    trOverallBadge.className = `decision-badge decision-${result.overall}`;
+    trModeBadge.textContent = result.mode_label;
+    trModeBadge.className = `decision-badge decision-${result.overall}`;
+    setStatus(`Connected · ${result.overall_label}`);
+  } catch (err) {
+    setStatus(`Evaluation failed: ${err.message}`, true);
+  }
+});
 
 // ---------- Init ----------
 scheduleAutoRefresh();

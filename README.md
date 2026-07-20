@@ -41,15 +41,22 @@ middleware-worker/    Cloudflare Worker implementing POST /v1/turn
   action-aware simulated reply (still distinct per `allow`/`soften`/`escalate`)
   so the full pipeline runs with zero external dependencies.
 - **`middleware-worker/index.js`** — the Worker's HTTP surface (`/v1/turn`,
-  `/v1/session/:id`, `/v1/sessions`, `/v1/governance/*`, CORS, optional
-  `API_KEY` bearer auth) plus in-memory per-session state (turn count,
-  sentiment trend, crisis count, and the message history used as LLM
-  context).
+  `/v1/session/:id`, `/v1/sessions`, `/v1/governance/*`,
+  `/v1/trust-receipt/*`, CORS, optional `API_KEY` bearer auth) plus in-memory
+  per-session state (turn count, sentiment trend, crisis count, and the
+  message history used as LLM context).
 - **`middleware-worker/governance.js`** — in-memory CRUD stores for the
   governance record-keeping instruments defined in the Emotional
   Infrastructure Professional Governance Manual: the AI Use Inventory and
   Disclosure Review Record (Product Front Matter), the QA Findings Tracker
   (Appendix F), and the Release Readiness Checklist (Appendix I).
+- **`middleware-worker/trustReceipt.js`** — a deterministic, noncompensatory
+  decision engine implementing the AI Trust Receipt Workbook's Conformance
+  Decision Protocol (Worksheet 5.4A–D / Technical Profile 5.4C): evaluates
+  requirements R1–R12 and produces an overall conformance decision
+  (`conforms` / `conditional` / `does_not_conform` / `not_triggered`) plus a
+  deployment mode. `trustReceipt.test.mjs` reproduces the workbook's own
+  normative test vectors T01–T09 exactly.
 
 ## Admin console
 
@@ -64,11 +71,16 @@ console for the middleware, separate from the demo chat UI:
   `disclosure-review`, or `qa-findings`).
 - **Release Readiness Checklist** — the fixed Appendix I.1 gate list; toggle
   items complete via `PATCH /v1/governance/release-checklist/:id`.
+- **Trust Receipt Conformance** — set a consequence class (C0–C3) and a
+  Pass/Partial/Fail result (plus an "evidence unavailable" flag) for each of
+  the twelve requirements, then evaluate via `POST /v1/trust-receipt/evaluate`
+  to see the resulting conformance decision and deployment mode. The
+  requirement catalog itself comes from `GET /v1/trust-receipt/requirements`.
 
-`/v1/sessions` and `/v1/governance/*` are gated by the same `API_KEY` bearer
-check as `/v1/turn` when one is configured. All governance records are
-in-memory and reset when the Worker isolate restarts — the same tradeoff as
-session state (see below).
+`/v1/sessions`, `/v1/governance/*`, and `/v1/trust-receipt/*` are gated by the
+same `API_KEY` bearer check as `/v1/turn` when one is configured. Governance
+records and session state are in-memory and reset when the Worker isolate
+restarts (see below).
 
 This is a demo-grade rule engine, not a clinical risk model — the crisis
 phrase list is narrow and literal by design. A production deployment should

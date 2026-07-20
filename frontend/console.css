@@ -50,4 +50,28 @@ tbody tr:hover td { background: #EFEADC; }
 .checklist li.done .checklist-label { text-decoration: line-through; color: var(--slate); }
 .checklist-progress { font-size: 0.85rem; color: var(--slate); margin: 0.25rem 0 0; }
 
+/* Trust Receipt Conformance tab */
+.tr-controls { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; margin: 0.75rem 0; }
+.tr-class-field { min-width: 340px; margin-bottom: 0; }
+.tr-class-field select { padding: 0.45rem 0.6rem; border: 1px solid #CBC2AE; border-radius: 6px; background: var(--white); color: var(--graphite); }
+
+.tr-req-row { border: 1px solid var(--hair); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 0.6rem; background: var(--white); }
+.tr-req-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.tr-req-id { font-weight: 700; color: var(--navy); }
+.tr-req-title { color: var(--graphite); font-weight: 600; }
+.gate-badge { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; padding: 0.05rem 0.45rem; border-radius: 999px; text-transform: uppercase; }
+.gate-badge.HARD { background: #EFC9B6; color: var(--copper-dark); }
+.gate-badge.CORE { background: var(--ivory); color: var(--slate); }
+.tr-req-assertions { margin: 0.4rem 0 0.5rem 1.1rem; padding: 0; font-size: 0.82rem; color: var(--slate); }
+.tr-req-controls { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.tr-req-controls select { padding: 0.3rem 0.5rem; border: 1px solid #CBC2AE; border-radius: 6px; background: var(--white); color: var(--graphite); }
+
+.tr-result { margin-top: 1rem; padding: 1rem; border: 1px solid var(--hair); border-radius: 8px; background: var(--ivory); }
+.tr-result-badges { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.decision-badge { display: inline-block; font-weight: 700; font-size: 0.85rem; padding: 0.35rem 0.9rem; border-radius: 999px; }
+.decision-conforms { background: #DCEBE9; color: var(--teal-dark); }
+.decision-conditional { background: #F2DFCC; color: var(--copper-dark); }
+.decision-does_not_conform { background: #EFC9B6; color: var(--copper-dark); }
+.decision-not_triggered { background: var(--ivory); color: var(--slate); border: 1px solid var(--hair); }
+
 .hidden { display: none; }
