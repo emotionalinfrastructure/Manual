@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emotional Infrastructure Console</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="console.css">
+</head>
+<body>
+  <header>
+    <h1>Emotional Infrastructure Console</h1>
+    <p>Live session monitoring and governance record-keeping, in one place.</p>
+  </header>
+
+  <main class="console-main">
+    <section class="panel connection-panel">
+      <label class="field">
+        API base URL
+        <input id="api-base" type="text" value="http://localhost:8787" spellcheck="false">
+      </label>
+      <label class="field">
+        API key <span class="muted">(only needed if the worker has API_KEY set)</span>
+        <input id="api-key" type="text" placeholder="optional bearer token" spellcheck="false">
+      </label>
+      <p id="conn-status" class="muted"></p>
+    </section>
+
+    <nav class="tabs" aria-label="Console sections">
+      <button class="tab-btn active" data-tab="sessions" type="button">Live Sessions</button>
+      <button class="tab-btn" data-tab="ai-use" type="button">AI Use Inventory</button>
+      <button class="tab-btn" data-tab="disclosure-review" type="button">Disclosure Review</button>
+      <button class="tab-btn" data-tab="qa-findings" type="button">QA Findings Tracker</button>
+      <button class="tab-btn" data-tab="release-checklist" type="button">Release Checklist</button>
+    </nav>
+
+    <!-- Live Sessions: ops/monitoring view of the middleware's /v1/turn traffic -->
+    <section id="tab-sessions" class="tab-panel panel active">
+      <div class="panel-head">
+        <h2>Live Sessions</h2>
+        <label class="inline-check"><input type="checkbox" id="auto-refresh" checked> Auto-refresh (5s)</label>
+        <button id="refresh-sessions" type="button" class="btn-secondary">Refresh</button>
+      </div>
+      <p class="muted">Every session this worker isolate has seen, with turn count, sentiment trend, and crisis-escalation count. Data resets when the isolate restarts &mdash; see the README for the KV/Durable Object upgrade path.</p>
+      <div class="table-wrap">
+        <table id="sessions-table">
+          <thead>
+            <tr><th>Session ID</th><th>Turns</th><th>Trend</th><th>Crisis turns</th><th>Created</th><th>Last turn</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p id="sessions-empty" class="muted hidden">No sessions yet. Send a message from the <a href="index.html">demo chat UI</a> to populate this view.</p>
+    </section>
+
+    <!-- AI Use Inventory: Product Front Matter p.6, Sample 1 -->
+    <section id="tab-ai-use" class="tab-panel panel">
+      <div class="panel-head"><h2>AI Use Inventory</h2></div>
+      <p class="muted">Tracks every AI-assisted system or tool in use: whether it is audience-facing, its trust-impact level, and whether disclosure or human review is required.</p>
+      <form id="form-ai-use" class="record-form">
+        <input name="system_tool" placeholder="System / tool" required>
+        <select name="audience_facing"><option value="">Audience-facing?</option><option>Yes</option><option>No</option></select>
+        <select name="trust_impact_level"><option value="">Trust impact level</option><option>Low</option><option>Moderate</option><option>High</option><option>Critical</option></select>
+        <input name="ai_function" placeholder="AI function">
+        <select name="disclosure_needed"><option value="">Disclosure needed?</option><option>Yes</option><option>No</option></select>
+        <select name="human_review_required"><option value="">Human review required?</option><option>Yes</option><option>No</option></select>
+        <input name="owner" placeholder="Owner">
+        <input name="record_location" placeholder="Record location">
+        <button type="submit">Add entry</button>
+      </form>
+      <div class="table-wrap">
+        <table id="table-ai-use">
+          <thead><tr><th>System / tool</th><th>Audience-facing</th><th>Trust impact</th><th>AI function</th><th>Disclosure</th><th>Human review</th><th>Owner</th><th>Location</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Disclosure Review Record: Product Front Matter p.6, Sample 2 -->
+    <section id="tab-disclosure-review" class="tab-panel panel">
+      <div class="panel-head"><h2>Disclosure Review Record</h2></div>
+      <p class="muted">Records the disclosure decision for a specific audience-facing asset, its reviewer, and follow-up.</p>
+      <form id="form-disclosure-review" class="record-form">
+        <input name="asset" placeholder="Asset" required>
+        <input name="ai_involvement" placeholder="AI involvement">
+        <input name="disclosure_level" placeholder="Disclosure level">
+        <input name="reviewer" placeholder="Reviewer">
+        <input name="risk_note" placeholder="Risk note">
+        <select name="approved"><option value="">Approved?</option><option>Yes</option><option>No</option></select>
+        <input name="follow_up" placeholder="Follow-up">
+        <button type="submit">Add entry</button>
+      </form>
+      <div class="table-wrap">
+        <table id="table-disclosure-review">
+          <thead><tr><th>Asset</th><th>AI involvement</th><th>Disclosure level</th><th>Reviewer</th><th>Risk note</th><th>Approved</th><th>Follow-up</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- QA Findings Tracker: Appendix F -->
+    <section id="tab-qa-findings" class="tab-panel panel">
+      <div class="panel-head"><h2>QA Findings Tracker <span class="muted">(Appendix F)</span></h2></div>
+      <p class="muted">Every open item must have one owner, one due date, and one closure note before final export.</p>
+      <form id="form-qa-findings" class="record-form">
+        <input name="area" placeholder="Area" required>
+        <input name="finding" placeholder="Finding" required>
+        <select name="priority"><option value="">Priority</option><option>High</option><option>Medium</option><option>Low</option></select>
+        <select name="status"><option value="Open">Open</option><option>Closed</option></select>
+        <input name="owner" placeholder="Owner">
+        <input name="due" type="date" placeholder="Due">
+        <button type="submit">Add finding</button>
+      </form>
+      <div class="table-wrap">
+        <table id="table-qa-findings">
+          <thead><tr><th>Area</th><th>Finding</th><th>Priority</th><th>Status</th><th>Owner</th><th>Due</th><th>Closure note</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Release Readiness Checklist: Appendix I.1 -->
+    <section id="tab-release-checklist" class="tab-panel panel">
+      <div class="panel-head"><h2>Release Readiness Checklist <span class="muted">(Appendix I)</span></h2></div>
+      <p class="muted">No final release should occur until every item is complete and the locked PDF has been verified against the manuscript source.</p>
+      <ul id="checklist-list" class="checklist"></ul>
+    </section>
+  </main>
+
+  <script src="console.js"></script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import { analyzeMessage } from "./lexicon.js";
 import { decidePolicy, summarizeTrend } from "./policy.js";
 import { generateReply } from "./llm.js";
+import { aiUseInventory, disclosureReview, qaFindings, releaseChecklist } from "./governance.js";
 
 // In-memory session store. Good enough for a single-isolate demo; a real
 // deployment would back this with a Durable Object or KV so state survives
@@ -25,7 +26,7 @@ function getSession(sessionId) {
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
@@ -123,6 +124,67 @@ function handleGetSession(sessionId) {
   });
 }
 
+// Ops/monitoring console: summary of every session this isolate has seen,
+// for a live view of trend and escalation state without pulling full history.
+function handleListSessions() {
+  const list = [...sessions.entries()].map(([sessionId, session]) => ({
+    session_id: sessionId,
+    turn_count: session.turnCount,
+    crisis_turn_count: session.crisisTurnCount,
+    trend: summarizeTrend(session.sentimentHistory),
+    created_at: session.createdAt,
+    last_turn_at: session.lastTurnAt,
+  }));
+  list.sort((a, b) => (b.last_turn_at || "").localeCompare(a.last_turn_at || ""));
+  return json({ sessions: list });
+}
+
+// Generic REST handlers shared by the governance record-keeping instruments
+// (AI Use Inventory, Disclosure Review Record, QA Findings Tracker). Each
+// store exposes list/create/update/remove; the checklist store (fixed items,
+// only `complete` is togglable) is routed separately below.
+async function handleGovernanceCollection(request, store) {
+  if (request.method === "GET") {
+    return json({ items: store.list() });
+  }
+  if (request.method === "POST") {
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "invalid_json" }, { status: 400 });
+    }
+    return json(store.create(body), { status: 201 });
+  }
+  return json({ error: "method_not_allowed" }, { status: 405 });
+}
+
+async function handleGovernanceItem(request, store, id) {
+  if (request.method === "PATCH") {
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "invalid_json" }, { status: 400 });
+    }
+    const updated = store.update(id, body);
+    if (!updated) return json({ error: "not_found" }, { status: 404 });
+    return json(updated);
+  }
+  if (request.method === "DELETE") {
+    const removed = store.remove(id);
+    if (!removed) return json({ error: "not_found" }, { status: 404 });
+    return json({ deleted: true });
+  }
+  return json({ error: "method_not_allowed" }, { status: 405 });
+}
+
+const GOVERNANCE_STORES = {
+  "ai-use": aiUseInventory,
+  "disclosure-review": disclosureReview,
+  "qa-findings": qaFindings,
+};
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -135,7 +197,19 @@ export default {
       return json({
         status: "ok",
         message: "Emotional Infrastructure Middleware running",
-        endpoints: ["POST /v1/turn", "GET /v1/session/:id"],
+        endpoints: [
+          "POST /v1/turn",
+          "GET /v1/session/:id",
+          "GET /v1/sessions",
+          "GET|POST /v1/governance/ai-use",
+          "PATCH|DELETE /v1/governance/ai-use/:id",
+          "GET|POST /v1/governance/disclosure-review",
+          "PATCH|DELETE /v1/governance/disclosure-review/:id",
+          "GET|POST /v1/governance/qa-findings",
+          "PATCH|DELETE /v1/governance/qa-findings/:id",
+          "GET /v1/governance/release-checklist",
+          "PATCH /v1/governance/release-checklist/:id",
+        ],
       });
     }
 
@@ -146,6 +220,44 @@ export default {
     const sessionMatch = url.pathname.match(/^\/v1\/session\/([^/]+)$/);
     if (sessionMatch && request.method === "GET") {
       return handleGetSession(decodeURIComponent(sessionMatch[1]));
+    }
+
+    // Everything below is console/admin surface: live session list and the
+    // governance record-keeping instruments. Gated the same way as /v1/turn.
+    if (url.pathname.startsWith("/v1/sessions") || url.pathname.startsWith("/v1/governance/")) {
+      if (!authorized(request, env)) {
+        return json({ error: "unauthorized" }, { status: 401 });
+      }
+    }
+
+    if (url.pathname === "/v1/sessions" && request.method === "GET") {
+      return handleListSessions();
+    }
+
+    if (url.pathname === "/v1/governance/release-checklist" && request.method === "GET") {
+      return json({ items: releaseChecklist.list() });
+    }
+    const checklistItemMatch = url.pathname.match(/^\/v1\/governance\/release-checklist\/([^/]+)$/);
+    if (checklistItemMatch && request.method === "PATCH") {
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return json({ error: "invalid_json" }, { status: 400 });
+      }
+      const updated = releaseChecklist.update(decodeURIComponent(checklistItemMatch[1]), body);
+      if (!updated) return json({ error: "not_found" }, { status: 404 });
+      return json(updated);
+    }
+
+    const collectionMatch = url.pathname.match(/^\/v1\/governance\/([^/]+)$/);
+    if (collectionMatch && GOVERNANCE_STORES[collectionMatch[1]]) {
+      return handleGovernanceCollection(request, GOVERNANCE_STORES[collectionMatch[1]]);
+    }
+
+    const itemMatch = url.pathname.match(/^\/v1\/governance\/([^/]+)\/([^/]+)$/);
+    if (itemMatch && GOVERNANCE_STORES[itemMatch[1]]) {
+      return handleGovernanceItem(request, GOVERNANCE_STORES[itemMatch[1]], decodeURIComponent(itemMatch[2]));
     }
 
     return json({ error: "not_found" }, { status: 404 });

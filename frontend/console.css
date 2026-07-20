@@ -1,0 +1,50 @@
+.console-main { max-width: 1080px; }
+
+.connection-panel { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; }
+.connection-panel .field { flex: 1; min-width: 220px; margin-bottom: 0; }
+.connection-panel .muted { flex-basis: 100%; margin: 0; }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+.tab-btn { padding: 0.5rem 0.9rem; border: 1px solid #d1d5db; background: white; border-radius: 999px; font-size: 0.85rem; cursor: pointer; color: #374151; }
+.tab-btn:hover { border-color: #93c5fd; }
+.tab-btn.active { background: #2563eb; border-color: #2563eb; color: white; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.panel-head { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.panel-head h2 { margin: 0; font-size: 1.15rem; }
+.inline-check { font-size: 0.85rem; color: #374151; display: flex; align-items: center; gap: 0.3rem; }
+
+.btn-secondary { padding: 0.35rem 0.8rem; border: 1px solid #d1d5db; background: #f9fafb; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+.btn-secondary:hover { background: #f3f4f6; }
+
+.table-wrap { overflow-x: auto; margin-top: 0.75rem; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
+th { color: #6b7280; font-weight: 600; text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.03em; }
+td { color: #1f2937; }
+tbody tr:hover { background: #f9fafb; }
+
+.record-form { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0; }
+.record-form input, .record-form select { padding: 0.45rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem; flex: 1 1 150px; }
+.record-form button { padding: 0.45rem 1rem; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; flex: 0 0 auto; }
+.record-form button:hover { background: #1d4ed8; }
+
+.row-btn { padding: 0.25rem 0.6rem; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-size: 0.78rem; }
+.row-btn.danger { color: #991b1b; border-color: #fecaca; }
+.row-btn.danger:hover { background: #fef2f2; }
+.status-select { padding: 0.2rem 0.4rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.8rem; }
+
+.trend-badge { display: inline-block; font-size: 0.72rem; font-weight: bold; padding: 0.1rem 0.5rem; border-radius: 999px; background: #e5e7eb; color: #374151; text-transform: uppercase; }
+.trend-declining { background: #fee2e2; color: #991b1b; }
+.trend-improving { background: #d1fae5; color: #065f46; }
+.trend-stable, .trend-neutral { background: #e5e7eb; color: #374151; }
+
+.checklist { list-style: none; margin: 0.75rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.checklist li { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.8rem; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 0.9rem; }
+.checklist li.done { background: #ecfdf5; border-color: #a7f3d0; }
+.checklist li.done .checklist-label { text-decoration: line-through; color: #6b7280; }
+.checklist-progress { font-size: 0.85rem; color: #6b7280; margin: 0.25rem 0 0; }
+
+.hidden { display: none; }

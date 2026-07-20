@@ -116,3 +116,83 @@ test("API_KEY enforcement rejects missing/incorrect bearer token", async () => {
   const res2 = await worker.fetch(authedReq, securedEnv);
   assert.equal(res2.status, 200);
 });
+
+test("console: GET /v1/sessions lists sessions seen by this isolate", async () => {
+  await worker.fetch(turnRequest("console-1", "hello there"), env);
+  const res = await worker.fetch(new Request(`${BASE}/v1/sessions`), env);
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.ok(body.sessions.some((s) => s.session_id === "console-1"));
+});
+
+test("console: /v1/sessions and /v1/governance/* require the API key when one is set", async () => {
+  const securedEnv = { API_KEY: "secret" };
+  const res = await worker.fetch(new Request(`${BASE}/v1/sessions`), securedEnv);
+  assert.equal(res.status, 401);
+
+  const res2 = await worker.fetch(new Request(`${BASE}/v1/governance/qa-findings`), securedEnv);
+  assert.equal(res2.status, 401);
+});
+
+test("governance: QA Findings Tracker supports create, list, and patch", async () => {
+  const createRes = await worker.fetch(
+    new Request(`${BASE}/v1/governance/qa-findings`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        area: "Standards Index",
+        finding: "Confirm no new EI-STD identifiers were introduced.",
+        priority: "High",
+        status: "Open",
+        owner: "Editorial",
+        due: "2026-08-01",
+      }),
+    }),
+    env
+  );
+  assert.equal(createRes.status, 201);
+  const created = await createRes.json();
+  assert.equal(created.status, "Open");
+
+  const listRes = await worker.fetch(new Request(`${BASE}/v1/governance/qa-findings`), env);
+  const listBody = await listRes.json();
+  assert.ok(listBody.items.some((item) => item.id === created.id));
+
+  const patchRes = await worker.fetch(
+    new Request(`${BASE}/v1/governance/qa-findings/${created.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "Closed", closure_note: "Verified against Appendix B." }),
+    }),
+    env
+  );
+  assert.equal(patchRes.status, 200);
+  const patched = await patchRes.json();
+  assert.equal(patched.status, "Closed");
+  assert.equal(patched.closure_note, "Verified against Appendix B.");
+});
+
+test("governance: unknown governance collection returns 404", async () => {
+  const res = await worker.fetch(new Request(`${BASE}/v1/governance/not-a-real-instrument`), env);
+  assert.equal(res.status, 404);
+});
+
+test("governance: Release Readiness Checklist is seeded and items can be toggled", async () => {
+  const listRes = await worker.fetch(new Request(`${BASE}/v1/governance/release-checklist`), env);
+  const listBody = await listRes.json();
+  assert.equal(listBody.items.length, 10);
+  assert.ok(listBody.items.every((item) => item.complete === false));
+
+  const target = listBody.items[0];
+  const patchRes = await worker.fetch(
+    new Request(`${BASE}/v1/governance/release-checklist/${target.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ complete: true }),
+    }),
+    env
+  );
+  assert.equal(patchRes.status, 200);
+  const patched = await patchRes.json();
+  assert.equal(patched.complete, true);
+});

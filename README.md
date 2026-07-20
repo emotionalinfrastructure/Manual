@@ -7,7 +7,7 @@ directive from that decision, and uses it to steer the actual model call that
 generates the reply.
 
 ```
-frontend/            Static demo chat UI (vanilla HTML/CSS/JS)
+frontend/            Static demo chat UI + admin console (vanilla HTML/CSS/JS)
 middleware-worker/    Cloudflare Worker implementing POST /v1/turn
 ```
 
@@ -41,9 +41,34 @@ middleware-worker/    Cloudflare Worker implementing POST /v1/turn
   action-aware simulated reply (still distinct per `allow`/`soften`/`escalate`)
   so the full pipeline runs with zero external dependencies.
 - **`middleware-worker/index.js`** — the Worker's HTTP surface (`/v1/turn`,
-  `/v1/session/:id`, CORS, optional `API_KEY` bearer auth) plus in-memory
-  per-session state (turn count, sentiment trend, crisis count, and the
-  message history used as LLM context).
+  `/v1/session/:id`, `/v1/sessions`, `/v1/governance/*`, CORS, optional
+  `API_KEY` bearer auth) plus in-memory per-session state (turn count,
+  sentiment trend, crisis count, and the message history used as LLM
+  context).
+- **`middleware-worker/governance.js`** — in-memory CRUD stores for the
+  governance record-keeping instruments defined in the Emotional
+  Infrastructure Professional Governance Manual: the AI Use Inventory and
+  Disclosure Review Record (Product Front Matter), the QA Findings Tracker
+  (Appendix F), and the Release Readiness Checklist (Appendix I).
+
+## Admin console
+
+`frontend/console.html` is a live monitoring + governance record-keeping
+console for the middleware, separate from the demo chat UI:
+
+- **Live Sessions** — every session this Worker isolate has seen, with turn
+  count, sentiment trend, and crisis-escalation count (`GET /v1/sessions`).
+- **AI Use Inventory**, **Disclosure Review**, **QA Findings Tracker** — add,
+  edit, and delete records via `GET/POST /v1/governance/:kind` and
+  `PATCH/DELETE /v1/governance/:kind/:id` (`kind` is `ai-use`,
+  `disclosure-review`, or `qa-findings`).
+- **Release Readiness Checklist** — the fixed Appendix I.1 gate list; toggle
+  items complete via `PATCH /v1/governance/release-checklist/:id`.
+
+`/v1/sessions` and `/v1/governance/*` are gated by the same `API_KEY` bearer
+check as `/v1/turn` when one is configured. All governance records are
+in-memory and reset when the Worker isolate restarts — the same tradeoff as
+session state (see below).
 
 This is a demo-grade rule engine, not a clinical risk model — the crisis
 phrase list is narrow and literal by design. A production deployment should
@@ -67,7 +92,9 @@ In another terminal, serve the frontend and open it in a browser:
 ```bash
 cd frontend
 python3 -m http.server 8080
-# open http://localhost:8080, API base URL already defaults to localhost:8787
+# chat demo:  http://localhost:8080/index.html
+# console:    http://localhost:8080/console.html
+# both default their API base URL to localhost:8787
 ```
 
 Or drive it with curl:
