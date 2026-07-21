@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from '../lib/crypto.js';
 import type {
   ReEngagementAssessment,
   RepairExecutionOutcome,

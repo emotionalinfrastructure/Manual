@@ -76,7 +76,7 @@
     "url": "https://github.com/emotional-infrastructure/sdk/issues"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "sideEffects": false
 }

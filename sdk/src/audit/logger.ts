@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID, sha256Hex } from '../lib/crypto.js';
 import type { AuditEvent, AuditEventInput, AuditReceipt, AuditStats, ExportFormat } from '../types/index.js';
 
 export class AuditLogger {
@@ -148,7 +148,7 @@ export class AuditLogger {
       previousSignature: event.previousSignature ?? null,
     };
 
-    return createHash('sha256').update(AuditLogger.stableStringify(signable)).digest('hex');
+    return sha256Hex(AuditLogger.stableStringify(signable));
   }
 
   private static stableStringify(value: unknown): string {

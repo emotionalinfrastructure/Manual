@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from '../lib/crypto.js';
 import type { ToleranceWindow, ToleranceWindowInput, ToleranceWindowRecordResult } from '../types/index.js';
 
 export class ToleranceWindowManager {

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID, sha256Hex } from '../lib/crypto.js';
 import type { ConsentToken, ConsentTokenIDInput, ConsentTokenInput } from '../types/index.js';
 
 export class ConsentTokenID {
@@ -11,9 +11,7 @@ export class ConsentTokenID {
     ConsentTokenID.assertRequired(input.scope, 'scope');
 
     if (input.deterministic === true) {
-      const digest = createHash('sha256')
-        .update(`${input.userId}|${input.purpose}|${input.scope}`)
-        .digest('hex');
+      const digest = sha256Hex(`${input.userId}|${input.purpose}|${input.scope}`);
       return `${ConsentTokenID.PREFIX}-${digest.slice(0, 8)}-${digest.slice(8, 12)}-${digest.slice(12, 16)}-${digest.slice(16, 20)}-${digest.slice(20, 32)}`;
     }
 

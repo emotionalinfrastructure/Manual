@@ -5,5 +5,13 @@ export default {
   moduleNameMapper: {
     '^(\.{1,2}/.*)\.js$': '$1'
   },
-  collectCoverageFrom: ['src/**/*.ts']
+  collectCoverageFrom: ['src/**/*.ts'],
+  coverageThreshold: {
+    global: {
+      statements: 95,
+      branches: 90,
+      functions: 95,
+      lines: 95
+    }
+  }
 };
