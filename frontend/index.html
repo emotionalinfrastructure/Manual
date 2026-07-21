@@ -21,8 +21,8 @@
       </p>
 
       <label class="field">
-        API base URL
-        <input id="api-base" type="text" value="http://localhost:8787" spellcheck="false">
+        API base URL <span class="muted">(blank = same origin as this page)</span>
+        <input id="api-base" type="text" value="" placeholder="e.g. https://your-worker.workers.dev" spellcheck="false">
       </label>
       <label class="field">
         Session ID
@@ -51,7 +51,7 @@
       <pre><code>curl -X POST http://localhost:8787/v1/turn \
   -H "Content-Type: application/json" \
   -d '{"session_id": "demo-123", "user_message": "Hello"}'</code></pre>
-      <p class="muted">Run the worker locally with <code>npm run dev</code> inside <code>middleware-worker/</code>, or deploy it with <code>npm run deploy</code> (Cloudflare Workers).</p>
+      <p class="muted">Run everything locally with <code>npm run dev</code> inside <code>middleware-worker/</code> (serves this page too, at <code>http://localhost:8787/</code>), or deploy with <code>npm run deploy</code> / Cloudflare's Git integration — see the top-level README.</p>
     </section>
   </main>
   <script src="app.js"></script>

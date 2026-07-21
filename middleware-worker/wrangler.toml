@@ -2,6 +2,13 @@ name = "emotional-infra-middleware"
 main = "index.js"
 compatibility_date = "2023-09-19"
 
+# Serves frontend/ as static assets from the same Worker/origin as the API.
+# Requests that match a file here (e.g. /, /app.js, /styles.css) are served
+# directly; anything else (e.g. /v1/turn) falls through to index.js. This is
+# what lets a single Git-connected Worker deploy be the whole live demo.
+[assets]
+directory = "../frontend"
+
 # API_KEY is optional. Unset -> demo mode (no auth required on /v1/turn).
 # Set with: wrangler secret put API_KEY
 

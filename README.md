@@ -8,8 +8,15 @@ generates the reply.
 
 ```
 frontend/            Static demo chat UI (vanilla HTML/CSS/JS)
-middleware-worker/    Cloudflare Worker implementing POST /v1/turn
+middleware-worker/    Cloudflare Worker implementing POST /v1/turn, and
+                      serving frontend/ as static assets from the same origin
 ```
+
+The Worker is configured (`middleware-worker/wrangler.toml`'s `[assets]`
+block) to serve `frontend/` itself, so one deployed Worker is the whole live
+demo — the page and the API it calls share an origin, no separate static
+host or CORS wiring needed. `middleware-worker/dev-server.mjs` mirrors this
+locally.
 
 ## How it works
 
@@ -59,16 +66,12 @@ that also runs directly under Node.
 ```bash
 cd middleware-worker
 npm run test   # unit tests for the scoring/policy logic
-npm run dev    # starts the middleware on http://localhost:8787
+npm run dev    # starts the whole demo on http://localhost:8787
 ```
 
-In another terminal, serve the frontend and open it in a browser:
-
-```bash
-cd frontend
-python3 -m http.server 8080
-# open http://localhost:8080, API base URL already defaults to localhost:8787
-```
+Open `http://localhost:8787/` in a browser — that one server serves the chat
+UI and the `/v1/turn` API it calls. The "API base URL" field on the page can
+be left blank (same origin) or pointed at a different deployment.
 
 Or drive it with curl:
 
@@ -100,7 +103,11 @@ is also configurable (defaults to `claude-sonnet-5`).
 
 ## Deploy
 
-`middleware-worker/wrangler.toml` is set up for Cloudflare Workers:
+`middleware-worker/wrangler.toml` is set up to deploy the Worker *and* serve
+`frontend/` as static assets from the same origin — one deploy, one URL, the
+whole demo.
+
+**Option A — CLI, from a machine with Cloudflare access:**
 
 ```bash
 cd middleware-worker
@@ -109,5 +116,12 @@ npx wrangler secret put API_KEY             # optional; unset = demo mode, no au
 npx wrangler secret put ANTHROPIC_API_KEY   # optional; unset = simulated replies
 ```
 
-Point `frontend/index.html`'s API base URL field at the deployed Worker URL,
-then host `frontend/` on Cloudflare Pages or any static host.
+**Option B — Cloudflare's Git integration ("Workers Builds"), no CLI or
+local credentials needed:** in the Cloudflare dashboard, Workers & Pages →
+Create → Connect to Git → pick this repo, set the root directory to
+`middleware-worker`. Cloudflare detects `wrangler.toml` and builds/deploys
+automatically on every push to `main`. Add `ANTHROPIC_API_KEY` (and
+`API_KEY`, if you want auth) as secrets in that Worker's dashboard settings.
+
+Either way, the resulting `*.workers.dev` URL is the whole live demo —
+nothing else to host or wire up.
