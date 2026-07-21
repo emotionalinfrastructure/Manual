@@ -1,0 +1,477 @@
+<title>SPEC-101 Review &amp; Implementation Plan · EIOS v1.0.1</title>
+<style>
+  :root{
+    --navy:#101C2C; --navy-2:#182640;
+    --teal:#176B73; --teal-dark:#124F55;
+    --copper:#C46A3A; --copper-dark:#A6552B;
+    --ivory:#F5F1E8; --paper:#FFFFFF;
+    --slate:#5E6873; --ink:#20252B;
+    --hair:#DDD6C6; --hair-strong:#C9C0AC;
+    --rail-bg:#101C2C; --rail-ink:#C8D0DE; --rail-ink-dim:#8592A6;
+    --crit-bg:#F3DEDE; --crit-fg:#7A2E2E;
+    --high-bg:#F2DFCC; --high-fg:#A6552B;
+    --med-bg:#EFE6C8;  --med-fg:#8A6B1E;
+    --low-bg:#EDEAE0;  --low-fg:#5E6873;
+    --font-display: ui-serif,"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+    --font-body: -apple-system,BlinkMacSystemFont,"Neue Haas Grotesk Text Pro","Helvetica Neue",Helvetica,Arial,sans-serif;
+    --font-mono: "SF Mono","Berkeley Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --navy:#0B1420; --navy-2:#0F1826;
+      --teal:#2E93A0; --teal-dark:#1F6E78;
+      --copper:#D98A5E; --copper-dark:#C97A4C;
+      --ivory:#15191F; --paper:#1C212A;
+      --slate:#9AA3AC; --ink:#EDE9DF;
+      --hair:#333A42; --hair-strong:#454D56;
+      --rail-bg:#0B1420; --rail-ink:#C8D0DE; --rail-ink-dim:#6E7A8A;
+      --crit-bg:#3A1E1E; --crit-fg:#E2A6A6;
+      --high-bg:#3A2A18; --high-fg:#E8B98C;
+      --med-bg:#332E1A;  --med-fg:#D9C583;
+      --low-bg:#262B31;  --low-fg:#9AA3AC;
+    }
+  }
+  :root[data-theme="dark"]{
+    --navy:#0B1420; --navy-2:#0F1826;
+    --teal:#2E93A0; --teal-dark:#1F6E78;
+    --copper:#D98A5E; --copper-dark:#C97A4C;
+    --ivory:#15191F; --paper:#1C212A;
+    --slate:#9AA3AC; --ink:#EDE9DF;
+    --hair:#333A42; --hair-strong:#454D56;
+    --rail-bg:#0B1420; --rail-ink:#C8D0DE; --rail-ink-dim:#6E7A8A;
+    --crit-bg:#3A1E1E; --crit-fg:#E2A6A6;
+    --high-bg:#3A2A18; --high-fg:#E8B98C;
+    --med-bg:#332E1A;  --med-fg:#D9C583;
+    --low-bg:#262B31;  --low-fg:#9AA3AC;
+  }
+  :root[data-theme="light"]{
+    --navy:#101C2C; --navy-2:#182640;
+    --teal:#176B73; --teal-dark:#124F55;
+    --copper:#C46A3A; --copper-dark:#A6552B;
+    --ivory:#F5F1E8; --paper:#FFFFFF;
+    --slate:#5E6873; --ink:#20252B;
+    --hair:#DDD6C6; --hair-strong:#C9C0AC;
+    --rail-bg:#101C2C; --rail-ink:#C8D0DE; --rail-ink-dim:#8592A6;
+    --crit-bg:#F3DEDE; --crit-fg:#7A2E2E;
+    --high-bg:#F2DFCC; --high-fg:#A6552B;
+    --med-bg:#EFE6C8;  --med-fg:#8A6B1E;
+    --low-bg:#EDEAE0;  --low-fg:#5E6873;
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--ivory);color:var(--ink);font-family:var(--font-body);line-height:1.6;font-size:16px}
+  h1,h2,h3,h4{font-family:var(--font-display);font-weight:600;text-wrap:balance;color:var(--navy)}
+  :root[data-theme="dark"] h1, :root[data-theme="dark"] h2, :root[data-theme="dark"] h3, :root[data-theme="dark"] h4{color:var(--ink)}
+  @media (prefers-color-scheme: dark){ h1,h2,h3,h4{color:var(--ink)} }
+  code,pre,.mono{font-family:var(--font-mono)}
+  a{color:var(--teal)}
+  .tabular{font-variant-numeric:tabular-nums}
+
+  .shell{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+  @media (max-width: 880px){ .shell{grid-template-columns:1fr} .rail{position:static !important;height:auto !important} }
+
+  /* -------- Rail -------- */
+  .rail{position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--rail-bg);color:var(--rail-ink);padding:28px 22px 32px;border-right:3px solid var(--copper)}
+  .rail .eyebrow{font-family:var(--font-body);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--copper);margin-bottom:6px}
+  .rail h1{font-size:19px;color:#fff;line-height:1.3;margin:0 0 3px}
+  .rail .sub{font-size:12px;color:var(--rail-ink-dim);margin-bottom:22px}
+  .severity-summary{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:26px}
+  .sev-chip{border-radius:7px;padding:7px 8px;font-size:11px}
+  .sev-chip b{display:block;font-family:var(--font-display);font-size:18px;line-height:1.1}
+  .sev-crit{background:rgba(122,46,46,.28);color:#F0BEBE}
+  .sev-high{background:rgba(166,85,43,.28);color:#F0CBA8}
+  .sev-med{background:rgba(138,107,30,.28);color:#EBDBA0}
+  .sev-low{background:rgba(94,104,115,.28);color:#C6CCD2}
+
+  .rail nav{display:flex;flex-direction:column;gap:2px;margin-bottom:26px}
+  .rail nav a{font-size:13px;color:var(--rail-ink);text-decoration:none;padding:7px 8px;border-radius:5px;display:flex;justify-content:space-between;gap:8px}
+  .rail nav a:hover{background:rgba(255,255,255,.06);color:#fff}
+  .rail nav a .n{color:var(--rail-ink-dim);font-size:11px}
+  .rail .meta{font-size:11px;color:var(--rail-ink-dim);border-top:1px solid rgba(255,255,255,.14);padding-top:14px;line-height:1.7}
+  .rail .meta strong{color:var(--rail-ink)}
+
+  /* -------- Main -------- */
+  main{padding:0 0 90px}
+  .hero{background:var(--navy);color:#EDE8DB;padding:52px 48px 40px;border-bottom:3px solid var(--copper)}
+  .hero .kicker{font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--copper);margin-bottom:14px}
+  .hero h1{color:#fff;font-size:clamp(26px,3.4vw,38px);margin:0 0 12px}
+  .hero p{max-width:640px;color:#C8D0DE;font-size:15px;margin:0}
+  .hero .status-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+  .status-pill{font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:4px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.25);color:#C8D0DE}
+
+  section{padding:44px 48px;border-bottom:1px solid var(--hair);max-width:1180px}
+  section:last-of-type{border-bottom:none}
+  .section-label{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--copper);margin-bottom:8px}
+  section > h2{font-size:clamp(22px,2.6vw,28px);margin:0 0 8px}
+  .rule{width:64px;height:3px;background:var(--copper);margin:0 0 20px;border-radius:2px}
+  .lede{max-width:70ch;color:var(--slate);font-size:15px;margin-bottom:26px}
+  .prose{max-width:74ch}
+  .prose p{margin:0 0 14px}
+  .prose h3{font-size:16px;margin:26px 0 8px;color:var(--teal-dark)}
+  .callout{background:var(--paper);border-left:4px solid var(--copper);padding:14px 18px;font-size:14px;color:var(--ink);margin:16px 0;border-radius:0 6px 6px 0}
+
+  .table-wrap{overflow-x:auto;border:1px solid var(--hair);border-radius:10px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--paper)}
+  thead th{background:var(--navy);color:#EDE8DB;text-align:left;font-family:var(--font-body);font-weight:600;font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:10px 12px;white-space:nowrap;position:sticky;top:0}
+  tbody td{padding:10px 12px;border-bottom:1px solid var(--hair);vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:nth-child(even) td{background:color-mix(in srgb, var(--paper) 96%, var(--navy) 4%)}
+  td.id, th.id{font-family:var(--font-mono);font-size:12px;color:var(--teal-dark);white-space:nowrap}
+  td.center{text-align:center}
+
+  .sev{display:inline-block;font-family:var(--font-body);font-weight:700;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;padding:2px 9px;border-radius:999px;white-space:nowrap}
+  .sev-critical{background:var(--crit-bg);color:var(--crit-fg)}
+  .sev-high-b{background:var(--high-bg);color:var(--high-fg)}
+  .sev-medium{background:var(--med-bg);color:var(--med-fg)}
+  .sev-low-b{background:var(--low-bg);color:var(--low-fg)}
+
+  .cat{display:inline-block;font-size:10.5px;color:var(--slate);border:1px solid var(--hair-strong);border-radius:999px;padding:1px 8px;white-space:nowrap}
+
+  .tree{background:var(--navy);color:#DCE3EC;font-family:var(--font-mono);font-size:13px;line-height:1.75;padding:22px 26px;border-radius:10px;overflow-x:auto}
+  .tree .dir{color:#8FD1D8}
+  .tree .note{color:#8592A6}
+
+  .patch-status{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 9px;border-radius:999px}
+  .status-ok{background:var(--low-bg);color:var(--teal-dark)}
+  .status-partial{background:var(--high-bg);color:var(--high-fg)}
+  .status-gap{background:var(--crit-bg);color:var(--crit-fg)}
+
+  footer{padding:30px 48px;color:var(--slate);font-size:12.5px}
+
+  ::selection{background:var(--copper);color:#fff}
+</style>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="eyebrow">Specification Review</div>
+    <h1>SPEC-101 &mdash; EIOS v1.0.1</h1>
+    <div class="sub">Release &amp; Testability Contract &middot; reviewed as a governance &amp; engineering specification</div>
+
+    <div class="severity-summary">
+      <div class="sev-chip sev-crit"><b>9</b>Critical</div>
+      <div class="sev-chip sev-high"><b>8</b>High</div>
+      <div class="sev-chip sev-med"><b>6</b>Medium</div>
+      <div class="sev-chip sev-low"><b>2</b>Low</div>
+    </div>
+
+    <nav>
+      <a href="#scope"><span>Scope &amp; method</span></a>
+      <a href="#findings"><span>Findings register</span><span class="n">25</span></a>
+      <a href="#plan"><span>Implementation plan</span></a>
+      <a href="#structure"><span>Repository structure</span></a>
+      <a href="#patches"><span>Patch targets</span><span class="n">6</span></a>
+      <a href="#tests"><span>Conformance test matrix</span><span class="n">45</span></a>
+    </nav>
+
+    <div class="meta">
+      <strong>Reviewed bundle:</strong> eios_v1.0.1_spec_and_patches.zip<br>
+      spec/SPEC-101.md &middot; 6 patches &middot; 1 test &middot; pytest.ini &middot; ci.yml &middot; ops/gen_keys.py<br><br>
+      <strong>Not available:</strong> the base <code>eios/</code> source repository the patches apply to. Findings below are against the spec's own text and the partial code visible in the patches/test, not a running implementation.
+    </div>
+  </aside>
+
+  <main>
+    <div class="hero">
+      <div class="kicker">Governance &amp; Engineering Review</div>
+      <h1>Ready-to-implement plan for EIOS v1.0.1</h1>
+      <p>SPEC-101 describes an ESC-certified emotional-safety engine: a non-bypassable safety router, white-paper-exact metrics, a tamper-evident ledger, and a 100%-branch-coverage pytest suite. This review checks whether the specification itself is complete enough to build and test against &mdash; and lays out what to build the moment the base repository is available.</p>
+      <div class="status-row">
+        <span class="status-pill">25 findings</span>
+        <span class="status-pill">9 blocking (critical)</span>
+        <span class="status-pill">6 modules planned</span>
+        <span class="status-pill">45 conformance tests specified</span>
+      </div>
+    </div>
+
+    <section id="scope">
+      <div class="section-label">Method</div>
+      <h2>Scope &amp; how this review was done</h2>
+      <div class="rule"></div>
+      <div class="prose">
+        <p>This review reads SPEC-101.md as a contract an implementer, an ESC auditor, and a pytest suite all have to agree on. Every finding below is anchored to specific spec language &mdash; a formula, a state-diagram edge, a MoSCoW line &mdash; not to a hypothetical implementation choice. Where the six included patches or the one included test (<code>tests/test_auditor_bloom.py</code>) reveal a concrete code shape the spec doesn't fully describe in prose, that's used as corroborating evidence.</p>
+        <p>No base <code>eios/</code> repository was provided, so this is a specification and interface review, not a code review. Where a finding has an obvious, low-risk fix, a <strong>proposed resolution</strong> is included directly in the findings register so implementation isn't blocked on a second round-trip &mdash; but every resolution is a proposal for sign-off, not a silent rewrite of the source document.</p>
+        <p>Findings are organized by severity, then tagged by category (contradiction, undefined variable, unsafe default, incomplete routing transition, ledger-integrity gap, missing consent enforcement, untestable requirement) so they can be triaged the same way the QA Findings Tracker in this organization's own Governance Manual triages Appendix-F items.</p>
+      </div>
+    </section>
+
+    <section id="findings">
+      <div class="section-label">Findings Register</div>
+      <h2>25 findings across 7 categories</h2>
+      <div class="rule"></div>
+      <p class="lede">Ordered by severity. <strong>Critical</strong> findings block implementation &mdash; the router, the core safety metric, or the ledger's core privacy claim cannot be built correctly until they're resolved. <strong>High</strong> findings should be resolved before the first pytest conformance run. <strong>Medium</strong>/<strong>Low</strong> findings can be tracked and closed during implementation.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th class="id">ID</th><th>Severity</th><th>Category</th><th>Finding</th><th>Proposed resolution</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="id">SR-01</td><td><span class="sev sev-critical">Critical</span></td><td><span class="cat">Contradiction /<br>Incomplete routing</span></td>
+              <td><strong>SAFE_MODE is unreachable.</strong> The state diagram's only edges are NORMAL&rarr;QUARANTINE, NORMAL&rarr;CONSENT_GATE, SAFE_MODE&rarr;CONTAINMENT, CONTAINMENT&rarr;NORMAL, QUARANTINE&rarr;CONTAINMENT (&ldquo;stabilized&nbsp;x&nbsp;N&rdquo;), CONSENT_GATE&rarr;NORMAL. Nothing transitions <em>into</em> SAFE_MODE, yet the Background section explicitly promises recovery &ldquo;SAFE_MODE &rarr; CONTAINMENT &rarr; NORMAL.&rdquo;</td>
+              <td>Insert QUARANTINE&rarr;SAFE_MODE on &ldquo;stabilized&nbsp;x&nbsp;N&rdquo;, so the full chain reads QUARANTINE&rarr;SAFE_MODE&rarr;(3 safe turns)&rarr;CONTAINMENT&rarr;(4 safe turns)&rarr;NORMAL.</td></tr>
+
+            <tr><td class="id">SR-02</td><td><span class="sev sev-critical">Critical</span></td><td><span class="cat">Contradiction</span></td>
+              <td><strong>CIS only fires when route&nbsp;==&nbsp;NORMAL.</strong> If a session is already in QUARANTINE, SAFE_MODE, CONTAINMENT, or CONSENT_GATE for an unrelated reason, a trauma-without-consent disclosure in that same turn scores CIS&nbsp;=&nbsp;1.0 (full integrity) &mdash; the exact violation the metric exists to catch is masked by being in any other route.</td>
+              <td>Evaluate the keyword/consent condition independent of current route; reserve the route check (if any) for response-shaping, not for gating whether the violation is scored.</td></tr>
+
+            <tr><td class="id">SR-03</td><td><span class="sev sev-critical">Critical</span></td><td><span class="cat">Undefined variable</span></td>
+              <td><strong>&Delta;I&#8330; and &Delta;I&#8331; are never defined.</strong> NAS's formula uses both terms; the spec gives only &ldquo;&Delta;I via last turn,&rdquo; with no rule for splitting a single intensity delta into positive/negative components or whether they're mutually exclusive.</td>
+              <td>Define &Delta;I&#8330; = max(0, intensity<sub>t</sub> &minus; intensity<sub>t&minus;1</sub>), &Delta;I&#8331; = max(0, intensity<sub>t&minus;1</sub> &minus; intensity<sub>t</sub>) &mdash; exactly one is non-zero per turn.</td></tr>
+
+            <tr><td class="id">SR-04</td><td><span class="sev sev-critical">Critical</span></td><td><span class="cat">Undefined variable</span></td>
+              <td><strong>&ldquo;intensity&rdquo; has no declared range.</strong> Unlike valence&nbsp;[&minus;1,1] and rumination_score&nbsp;[0,10], intensity (used directly in NAS and EVI) is never bounded &mdash; so NAS's <code>max(0, &hellip;)</code> floor has no matching ceiling and the metric's output range is unconstrained.</td>
+              <td>Declare intensity&nbsp;&isin;&nbsp;[0,1] in the data model; clamp NAS's final output to [0,1] explicitly.</td></tr>
+
+            <tr><td class="id">SR-05</td><td><span class="sev sev-critical">Critical</span></td><td><span class="cat">Undefined variable /<br>Untestable</span></td>
+              <td><strong>REI's entropy term has no binning rule.</strong> Shannon entropy requires a probability distribution; &ldquo;entropy of the last &le;10 intensities&rdquo; is meaningless over raw continuous samples without a quantization scheme, which the spec never gives.</td>
+              <td>Define a fixed-width histogram (e.g. 5 or 10 bins over [0,1]) converting the last &le;10 intensities into a probability vector before computing H; make the bin count a signed policy-bundle constant.</td></tr>
+
+            <tr><td class="id">SR-06</td><td><span class="sev sev-critical">Critical</span></td><td><span class="cat">Undefined variable</span></td>
+              <td><strong>&ldquo;stabilized&nbsp;x&nbsp;N&rdquo; leaves N undefined.</strong> Every other recovery threshold in the spec is a concrete number (3 safe turns, 4 safe turns); this one &mdash; the sole documented exit from QUARANTINE &mdash; is not, and &ldquo;stabilized&rdquo; itself has no operational test.</td>
+              <td>Reuse the existing &ldquo;safe turn&rdquo; primitive (no new trigger, NAS/CIS above a policy threshold) for &ldquo;stabilized,&rdquo; and set N&nbsp;=&nbsp;5 as the policy-bundle default.</td></tr>
+
+            <tr><td class="id">SR-07</td><td><span class="sev sev-critical">Critical</span></td><td><span class="cat">Missing consent<br>enforcement</span></td>
+              <td><strong>Consent never expires, is never scoped, and cannot be revoked.</strong> It's a single session-level field; once <code>ConsentLevel.EXPLICIT</code> is set it appears to authorize trauma-topic processing for the rest of the session, with no timestamp, scope, or revocation transition anywhere in the model.</td>
+              <td>Add <code>consent_granted_at</code>, <code>consent_scope</code>, and an explicit <code>REVOKE_CONSENT</code> transition that re-arms CONSENT_GATE on the next trauma-adjacent turn &mdash; mirroring how this org's own Trust Receipt Workbook scopes consent elsewhere.</td></tr>
+
+            <tr><td class="id">SR-08</td><td><span class="sev sev-critical">Critical</span></td><td><span class="cat">Ledger-integrity gap</span></td>
+              <td><strong>The Bloom salt is stored in the clear next to the filter it salts.</strong> Because the policy-phrase universe is small and fixed, anyone with export access can test every known phrase against a row's Bloom filter using that row's own stored salt &mdash; substantially reconstructing which sensitive phrases appeared in raw text. This directly undercuts the ESC Auditor section's &ldquo;no plaintext&rdquo; claim.</td>
+              <td>Derive the per-row salt from a keyed function of a secret held only by the auditor/signing process (e.g. HMAC(master_key, session_id&nbsp;&Vert;&nbsp;turn_index)) instead of storing it in the exportable row.</td></tr>
+
+            <tr><td class="id">SR-09</td><td><span class="sev sev-critical">Critical</span></td><td><span class="cat">Undefined variable /<br>Untestable</span></td>
+              <td><strong>The suicidality-detection trigger is never specified.</strong> The single most safety-critical routing rule (&ldquo;Suicidality &rarr; QUARANTINE&rdquo;) has no defined keyword list, classifier, or threshold anywhere in the document &mdash; only the CIS trauma-keyword list surfaces, via a patch, not the spec.</td>
+              <td>Resolve before any other implementation work starts: specify the detection mechanism and its false-negative tolerance in the policy bundle, signed off by whoever owns clinical/safety review.</td></tr>
+
+            <tr><td class="id">SR-10</td><td><span class="sev sev-high-b">High</span></td><td><span class="cat">Contradiction</span></td>
+              <td><strong>PII scrubbing is both optional and already-true.</strong> The MoSCoW Requirements section demotes &ldquo;PII scrubbing&rdquo; to <em>Should have</em>, while Method/Architecture states as fact that the &ldquo;Ledger is&hellip; PII-scrubbed.&rdquo;</td>
+              <td>Promote PII scrubbing to <em>Must have</em> (it's load-bearing for the privacy claims elsewhere), or soften the Architecture bullet to describe only what's actually guaranteed (raw text never persisted; hash + Bloom only).</td></tr>
+
+            <tr><td class="id">SR-11</td><td><span class="sev sev-high-b">High</span></td><td><span class="cat">Undefined variable</span></td>
+              <td><strong>&ldquo;agency&rdquo; has no declared range.</strong> &Delta;A&nbsp;=&nbsp;agency&nbsp;&minus;&nbsp;0.5 is unbounded without one.</td>
+              <td>Declare agency&nbsp;&isin;&nbsp;[0,1] to match the &minus;0.5 recentering, giving &Delta;A&nbsp;&isin;&nbsp;[&minus;0.5,&nbsp;0.5].</td></tr>
+
+            <tr><td class="id">SR-12</td><td><span class="sev sev-high-b">High</span></td><td><span class="cat">Undefined variable</span></td>
+              <td><strong>ConsentLevel is never fully enumerated.</strong> Only <code>.EXPLICIT</code> is referenced (via a patch); its other members are never listed in the spec.</td>
+              <td>Enumerate the full set (e.g. <code>NONE</code>, <code>IMPLIED</code>, <code>EXPLICIT</code>, <code>WITHDRAWN</code>) before any consent-path code or tests are written.</td></tr>
+
+            <tr><td class="id">SR-13</td><td><span class="sev sev-high-b">High</span></td><td><span class="cat">Unsafe default</span></td>
+              <td><strong>Recovery windows are pure turn-counters with no time floor.</strong> A user (or an adversarial script) can exit CONTAINMENT by sending a rapid burst of trivial messages, regardless of real elapsed time.</td>
+              <td>Add a policy-configurable minimum wall-clock dwell time per state, required alongside &mdash; not instead of &mdash; the turn count.</td></tr>
+
+            <tr><td class="id">SR-14</td><td><span class="sev sev-high-b">High</span></td><td><span class="cat">Ledger-integrity gap</span></td>
+              <td><strong>The HMAC chain's threat model is unscoped.</strong> A single shared symmetric key both writes and verifies the chain, so it protects against post-hoc external tampering but not against anyone with access to the live key (a compromised or malicious operator) &mdash; a distinction &ldquo;tamper-evident&rdquo; never draws.</td>
+              <td>State the threat model explicitly (external tamper detection only); if operator-level tamper evidence is actually required, move to WORM storage or a separately-keyed offline-verifiable signature per row.</td></tr>
+
+            <tr><td class="id">SR-15</td><td><span class="sev sev-high-b">High</span></td><td><span class="cat">Incomplete routing</span></td>
+              <td><strong>CONSENT_GATE has exactly one exit.</strong> Only &ldquo;explicit consent given&rdquo; leads out; there's no modeled path for refusal, timeout, or continuing in a restricted non-trauma mode, risking a stranded session or a silent, unspecified fallback in the first implementation.</td>
+              <td>Add an explicit CONSENT_GATE&rarr;NORMAL (restricted, trauma-depth disabled) transition for a declined or timed-out gate.</td></tr>
+
+            <tr><td class="id">SR-16</td><td><span class="sev sev-high-b">High</span></td><td><span class="cat">Incomplete routing</span></td>
+              <td><strong>No precedence rule for simultaneous triggers.</strong> If a single turn during CONTAINMENT contains both a &ldquo;safe&rdquo; signal and a fresh suicidality re-trigger, the spec never says which wins &mdash; exactly the kind of ambiguity that becomes a real bypass in the first ad hoc implementation.</td>
+              <td>State an explicit priority order (QUARANTINE-class triggers always evaluated first and override any recovery-counter increment) as a named rule.</td></tr>
+
+            <tr><td class="id">SR-17</td><td><span class="sev sev-high-b">High</span></td><td><span class="cat">Untestable requirement</span></td>
+              <td><strong>&ldquo;Non-bypassable&rdquo; is asserted, not enforced.</strong> The property is claimed but never given a structural definition (e.g. a type-level guarantee that Responder is only reachable via Router) &mdash; as written it's an aspiration, not a testable invariant.</td>
+              <td>Add an architectural test (or a type/interface constraint) that fails if any code path can reach Responder without passing through Router.</td></tr>
+
+            <tr><td class="id">SR-18</td><td><span class="sev sev-medium">Medium</span></td><td><span class="cat">Contradiction</span></td>
+              <td><strong>Signing is Must-have; key management is a later milestone.</strong> Signed export is bundled into the Must-have tamper-evident ledger requirement, yet the Milestones list schedules key management (M9) as future work, with no key-rotation or versioning scheme specified now.</td>
+              <td>Either scope v1.0.1's signing claim explicitly to &ldquo;single fixed key, no rotation&rdquo; (matching the milestone list), or pull key management forward into Must-have.</td></tr>
+
+            <tr><td class="id">SR-19</td><td><span class="sev sev-medium">Medium</span></td><td><span class="cat">Ledger-integrity gap</span></td>
+              <td><strong>Bloom parameters and target false-positive rate are unspecified.</strong> m/k/ngrams are stored per row, implying they can vary, but no FPR target exists anywhere &mdash; without one, &ldquo;the auditor flags inconsistencies&rdquo; isn't falsifiable, and 100% branch coverage doesn't capture probabilistic correctness.</td>
+              <td>Fix m/k/ngrams as policy-bundle constants sized to a stated FPR target (e.g. &le;0.1%); add property-based tests asserting the empirical FPR stays under that bound.</td></tr>
+
+            <tr><td class="id">SR-20</td><td><span class="sev sev-medium">Medium</span></td><td><span class="cat">Ledger-integrity gap</span></td>
+              <td><strong>No genesis-row rule for the hash chain.</strong> The spec never states what <code>prev_hash</code> is for the first row of a new session.</td>
+              <td>Define a fixed genesis value (e.g. 32 zero bytes, or HMAC of session_id alone) and test every session's first row against it.</td></tr>
+
+            <tr><td class="id">SR-21</td><td><span class="sev sev-medium">Medium</span></td><td><span class="cat">Missing consent<br>enforcement</span></td>
+              <td><strong>No mid-session consent revocation path.</strong> Nothing addresses what happens if a user withdraws consent mid-session, or whether prior logged rows get retroactively reflagged.</td>
+              <td>Add a <code>REVOKE_CONSENT</code> event that appends a new row (never mutates history) and re-arms CONSENT_GATE; state explicitly that past rows are never rewritten, consistent with the ledger's own append-only design.</td></tr>
+
+            <tr><td class="id">SR-22</td><td><span class="sev sev-medium">Medium</span></td><td><span class="cat">Untestable requirement</span></td>
+              <td><strong><code>full_replay_audit</code> returns prose, not structured findings.</strong> The one included test shows a list of free-text strings with severity embedded as a substring (e.g. &ldquo;CRITICAL&rdquo;&nbsp;+&nbsp;&ldquo;route mismatch&rdquo;) rather than typed findings.</td>
+              <td>Return <code>{code, severity, session_id, turn_index, message}</code> records instead of prose, with a <code>.summary()</code> renderer on top for humans &mdash; the same structured-finding pattern this org already uses for its own QA tracking.</td></tr>
+
+            <tr><td class="id">SR-23</td><td><span class="sev sev-medium">Medium</span></td><td><span class="cat">Undefined variable</span></td>
+              <td><strong>REI's low-history sentinel (&ldquo;2.0&rdquo;) is unexplained.</strong> When history&nbsp;&lt;&nbsp;5, REI defaults to a fixed 2.0 with no derivation or stated relationship to the entropy-based branch's range.</td>
+              <td>Document 2.0 as the entropy-branch's midpoint value (H&nbsp;=&nbsp;0.5 equivalent under &ldquo;1&nbsp;+&nbsp;2H&rdquo;) or replace it with an explicit low-confidence marker distinct from any real computed value.</td></tr>
+
+            <tr><td class="id">SR-24</td><td><span class="sev sev-low-b">Low</span></td><td><span class="cat">Untestable requirement</span></td>
+              <td><strong>&ldquo;p95 performance SLOs&rdquo; has no number.</strong> Listed under Should-have with no numeric target anywhere in the document.</td>
+              <td>Give it a figure (e.g. &ldquo;p95 turn-processing latency &le;150ms on the reference CI runner&rdquo;) or drop it from Requirements until one exists.</td></tr>
+
+            <tr><td class="id">SR-25</td><td><span class="sev sev-low-b">Low</span></td><td><span class="cat">Contradiction /<br>Undefined ordering</span></td>
+              <td><strong>&ldquo;Metrics Engine is pure,&rdquo; but CIS reads Router-mutated state.</strong> CIS depends on <code>state.route</code>, which the Router changes; the spec never states whether Router runs before or after Metrics within a turn, so it's unspecified whether CIS reflects the pre- or post-transition route for that same turn.</td>
+              <td>State the turn pipeline order explicitly (proposed: Metrics computed on pre-transition state &rarr; Router consumes those metrics &rarr; transition applies at end of turn) and pin it with an integration test.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="plan">
+      <div class="section-label">Implementation</div>
+      <h2>Source-code implementation plan</h2>
+      <div class="rule"></div>
+      <p class="lede">Six modules, each incorporating the proposed resolutions above rather than the spec's literal (and in places underspecified) text. Every design decision below that isn't directly stated in SPEC-101 is flagged as <strong>proposed</strong>.</p>
+
+      <div class="prose">
+        <h3>eios/core/estate.py &mdash; data model</h3>
+        <p><code>Route</code> (5-value enum: NORMAL, SAFE_MODE, CONTAINMENT, QUARANTINE, CONSENT_GATE) with the corrected transition table from <span class="mono">SR-01</span> encoded as data, not scattered conditionals, so the &ldquo;non-bypassable&rdquo; property (<span class="mono">SR-17</span>) can be checked structurally. <code>ConsentLevel</code> as a full enum (<span class="mono">SR-12</span>): <code>NONE</code>, <code>IMPLIED</code>, <code>EXPLICIT</code>, <code>WITHDRAWN</code>. <code>EmotionVector</code> with intensity&nbsp;&isin;&nbsp;[0,1] enforced at construction (<span class="mono">SR-04</span>). <code>EState</code> adds <code>consent_granted_at</code>, <code>consent_scope</code>, and per-transition <code>recovery_counters</code> plus a parallel <code>state_entered_at</code> map for the dwell-time floor (<span class="mono">SR-07, SR-13</span>).</p>
+
+        <h3>eios/config/policy.py &mdash; the Policy Bundle, made real</h3>
+        <p>The spec's architecture diagram treats the Policy Bundle as an external config box; it needs to be a first-class, versioned, signable module so every numeric or list-shaped decision below is auditable rather than a silent constant buried in code: suicidality and trauma keyword lists kept separate (<span class="mono">SR-09</span>); NAS/REI weights; entropy bin count (<span class="mono">SR-05</span>); Bloom <code>m</code>/<code>k</code>/<code>ngrams</code> plus target false-positive rate (<span class="mono">SR-19</span>); recovery turn-counts and minimum dwell times (<span class="mono">SR-06, SR-13</span>).</p>
+
+        <h3>eios/metrics/engine.py &mdash; compute_metrics(state, emotion)</h3>
+        <p>Pure function over an explicit pre-transition snapshot of state (<span class="mono">SR-25</span>). Implements NAS with the &Delta;I&#8330;/&Delta;I&#8331; split and output clamp (<span class="mono">SR-03, SR-04</span>), &Delta;A with declared agency bounds (<span class="mono">SR-11</span>), REI via fixed-bin histogram entropy (<span class="mono">SR-05, SR-23</span>), EVI unchanged, and CIS evaluated independent of current route (<span class="mono">SR-02</span>).</p>
+
+        <h3>eios/router/router.py &mdash; Router + Recovery Controller + Keyword Detectors</h3>
+        <p>Consumes this turn's metrics (never recomputes them) to decide the transition, applies the corrected SAFE_MODE path (<span class="mono">SR-01</span>), the CONSENT_GATE refusal/timeout exit (<span class="mono">SR-15</span>), the explicit trigger-precedence order (<span class="mono">SR-16</span>), and the dwell-time-plus-turn-count recovery gate (<span class="mono">SR-13</span>). Exposes a single entry point; <code>Responder</code> is constructed only with a token the Router issues, so bypass is a compile-time/type error rather than a convention (<span class="mono">SR-17</span>).</p>
+
+        <h3>eios/core/ledger.py &mdash; hash-chained, Bloom-augmented ledger</h3>
+        <p>SQLite (WAL) as specified. Genesis row uses a fixed, documented <code>prev_hash</code> (<span class="mono">SR-20</span>). Per-row Bloom salt is derived from a keyed function of a master secret rather than stored in the row (<span class="mono">SR-08</span>). Bloom parameters come from the Policy Bundle, not per-row choice (<span class="mono">SR-19</span>). Never persists raw <code>user_text</code> &mdash; only its hash and Bloom filter (<span class="mono">SR-10</span>). Appends (never mutates) a <code>REVOKE_CONSENT</code> row type (<span class="mono">SR-21</span>).</p>
+
+        <h3>eios/tools/esc_auditor.py &amp; export_cli.py</h3>
+        <p><code>full_replay_audit</code> returns typed findings (<span class="mono">SR-22</span>): <code>{code, severity, session_id, turn_index, message}</code>, with a thin string renderer kept for CLI/human output so the one existing test's substring assertions still have something to match against. Export embeds pubkey and fingerprint per the existing patch; the README/spec states the single-key threat model explicitly rather than implying rotation exists (<span class="mono">SR-14, SR-18</span>).</p>
+      </div>
+    </section>
+
+    <section id="structure">
+      <div class="section-label">Layout</div>
+      <h2>Required repository structure</h2>
+      <div class="rule"></div>
+      <p class="lede">Derived from the module plan above, the imports visible in <code>tests/test_auditor_bloom.py</code>, and the CI/tooling already specified in <code>pytest.ini</code> and <code>.github/workflows/ci.yml</code>.</p>
+      <div class="tree">eios/<br>
+&nbsp;&nbsp;<span class="dir">core/</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;__init__.py<br>
+&nbsp;&nbsp;&nbsp;&nbsp;estate.py&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># EState, Turn, EmotionVector, Metrics, Route, ConsentLevel</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;engine.py&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># EIOSEngine: orchestrates one turn end to end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;ledger.py&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># hash chain + salted Bloom, SQLite/WAL</span><br>
+&nbsp;&nbsp;<span class="dir">config/</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;__init__.py<br>
+&nbsp;&nbsp;&nbsp;&nbsp;policy.py&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># signed Policy Bundle: keywords, weights, windows, Bloom/FPR</span><br>
+&nbsp;&nbsp;<span class="dir">metrics/</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;__init__.py<br>
+&nbsp;&nbsp;&nbsp;&nbsp;engine.py&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># compute_metrics: NAS, ΔA, REI, EVI, CIS</span><br>
+&nbsp;&nbsp;<span class="dir">router/</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;__init__.py<br>
+&nbsp;&nbsp;&nbsp;&nbsp;router.py&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># Router + Recovery Controller + Keyword Detectors</span><br>
+&nbsp;&nbsp;<span class="dir">responder/</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;__init__.py<br>
+&nbsp;&nbsp;&nbsp;&nbsp;responder.py&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># pluggable; QUARANTINE/CONSENT_GATE safe-message overrides</span><br>
+&nbsp;&nbsp;<span class="dir">tools/</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;__init__.py<br>
+&nbsp;&nbsp;&nbsp;&nbsp;esc_auditor.py&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># full_replay_audit -> typed findings</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;export_cli.py&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># signed export: payload + sig_ed25519 + pubkey + fingerprint</span><br>
+<span class="dir">ops/</span><br>
+&nbsp;&nbsp;gen_keys.py&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># already provided</span><br>
+&nbsp;&nbsp;<span class="dir">keys/</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># generated, gitignored</span><br>
+<span class="dir">tests/</span><br>
+&nbsp;&nbsp;test_metrics.py<br>
+&nbsp;&nbsp;test_router.py<br>
+&nbsp;&nbsp;test_recovery.py<br>
+&nbsp;&nbsp;test_ledger.py<br>
+&nbsp;&nbsp;test_auditor_bloom.py&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># already provided</span><br>
+&nbsp;&nbsp;test_export_cli.py<br>
+&nbsp;&nbsp;test_integration.py<br>
+<span class="dir">.github/workflows/</span><br>
+&nbsp;&nbsp;ci.yml&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># already provided</span><br>
+pytest.ini&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># already provided, --cov-fail-under=100</span><br>
+pyproject.toml&nbsp;&nbsp;&nbsp;&nbsp;<span class="note"># new -- declares the "dev" extra ci.yml installs</span></div>
+    </section>
+
+    <section id="patches">
+      <div class="section-label">Patch Review</div>
+      <h2>Six patch targets</h2>
+      <div class="rule"></div>
+      <p class="lede">What each supplied patch actually changes, and whether it's sufficient on its own once the findings above are resolved.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th class="id">Patch file</th><th>Target</th><th>Status</th><th>Assessment</th></tr></thead>
+          <tbody>
+            <tr><td class="id">engine_cis_<br>explicit_consent<br>.patch</td><td><code>eios/metrics/engine.py</code></td><td><span class="patch-status status-partial">Partial</span></td>
+              <td>Replaces a magic <code>consent&nbsp;!=&nbsp;2</code> with <code>ConsentLevel.EXPLICIT</code> &mdash; a real, welcome type-safety improvement. But it doesn't touch the underlying route-gating logic flagged in <span class="mono">SR-02</span>: the condition is still wrapped in <code>state.route&nbsp;==&nbsp;Route.NORMAL</code>. Needs a follow-up patch, not just this one, before CIS is correct.</td></tr>
+
+            <tr><td class="id">ledger_bloom<br>.patch</td><td><code>eios/core/ledger.py</code></td><td><span class="patch-status status-partial">Partial</span></td>
+              <td>Adds the Bloom columns (<code>kw_bloom</code>, <code>kw_bloom_salt</code>, <code>bloom_m/k/ngrams</code>) and wires <code>_bloom_build</code> into <code>append()</code>. Structurally sound, but it's exactly the patch that introduces <span class="mono">SR-08</span>: it stores the salt in the same exportable row. This patch should not be considered final until the salt-derivation change is applied.</td></tr>
+
+            <tr><td class="id">auditor_bloom<br>.patch</td><td><code>eios/tools/esc_auditor.py</code></td><td><span class="patch-status status-gap">Gap</span></td>
+              <td>The supplied diff is a one-line comment edit (&ldquo;derive route using Bloom-only checks&rdquo; &rarr; &ldquo;&hellip;for suicidality/trauma&rdquo;). The actual Bloom-based route-rederivation logic the spec describes in Method/ESC&nbsp;Auditor is not present in what was supplied &mdash; this is the single biggest implementation gap among the six patches, independent of any spec-language issue.</td></tr>
+
+            <tr><td class="id">export_cli_<br>signing.patch</td><td><code>eios/tools/export_cli.py</code></td><td><span class="patch-status status-ok">OK, scoped</span></td>
+              <td>Adds <code>pubkey_b64</code> and <code>pubkey_fingerprint_sha256_b64</code> to the signed export payload. Complete for what it does; still has no key-rotation or versioning story (<span class="mono">SR-18</span>), which is out of this patch's scope by design.</td></tr>
+
+            <tr><td class="id">tests_import_<br>route_recovery<br>.patch<br><span class="mono">+</span><br>tests_import_<br>route_integration<br>.patch</td><td><code>tests/test_recovery.py</code><br><code>tests/test_integration.py</code></td><td><span class="patch-status status-gap">Gap</span></td>
+              <td>Both are one-line import fixes (adding <code>Route</code> to an existing import statement). They confirm <code>test_recovery.py</code> and <code>test_integration.py</code> already exist somewhere with fuller bodies, but neither body is included in this bundle &mdash; meaning the Must-have &ldquo;100% branch coverage&rdquo; requirement currently has no visible recovery or integration test content to review at all.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tests">
+      <div class="section-label">Conformance</div>
+      <h2>Pytest conformance-test matrix</h2>
+      <div class="rule"></div>
+      <p class="lede">45 cases across the six requirement areas, written the same way the workbook's own T01&ndash;T09 vectors are: a concrete input, an expected observable result. Cases marked <span class="patch-status status-gap" style="vertical-align:1px">Blocked</span> cannot be written correctly until the paired finding is resolved &mdash; they're included so the gap is visible in the test plan itself, not discovered later as a failing build.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th class="id">ID</th><th>Area</th><th>Given</th><th>Expected</th><th>Ref</th></tr></thead>
+          <tbody>
+            <tr><td class="id">TC-01</td><td>Metrics</td><td>intensity increases turn over turn, V&nbsp;=&nbsp;0, R<sub>t</sub>&nbsp;=&nbsp;0</td><td>NAS decreases proportional to 0.45&middot;&Delta;I&#8330;</td><td class="mono">SR-03</td></tr>
+            <tr><td class="id">TC-02</td><td>Metrics</td><td>intensity decreases, V&nbsp;=&nbsp;&minus;1 (fully negative valence)</td><td>0.35&middot;&Delta;I&#8331;&middot;(1&minus;V) term reaches its maximum weight</td><td class="mono">SR-03</td></tr>
+            <tr><td class="id">TC-03</td><td>Metrics</td><td>rumination_score&nbsp;=&nbsp;10</td><td>R<sub>t</sub>&nbsp;=&nbsp;1.0 exactly</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-04</td><td>Metrics</td><td>synthetic inputs that would drive the pre-clamp NAS expression above 1</td><td>NAS output clamped to exactly 1.0, never exceeds it</td><td class="mono">SR-04</td></tr>
+            <tr><td class="id">TC-05</td><td>Metrics</td><td>agency&nbsp;=&nbsp;0 and agency&nbsp;=&nbsp;1 (declared bounds)</td><td>&Delta;A&nbsp;=&nbsp;&minus;0.5 and &Delta;A&nbsp;=&nbsp;0.5 respectively</td><td class="mono">SR-11</td></tr>
+            <tr><td class="id">TC-06</td><td>Metrics</td><td>history length&nbsp;&lt;&nbsp;5</td><td>REI&nbsp;=&nbsp;2.0 sentinel, documented as the entropy midpoint</td><td class="mono">SR-23</td></tr>
+            <tr><td class="id">TC-07</td><td>Metrics</td><td>10 identical intensities (zero entropy)</td><td>REI&nbsp;=&nbsp;1.0 (H&nbsp;=&nbsp;0)</td><td class="mono">SR-05</td></tr>
+            <tr><td class="id">TC-08</td><td>Metrics</td><td>10 maximally-spread intensities across all histogram bins</td><td>REI reaches its documented maximum for the configured bin count</td><td class="mono">SR-05</td></tr>
+            <tr><td class="id">TC-09</td><td>Metrics</td><td>large intensity jump, valence&nbsp;=&nbsp;0</td><td>EVI&nbsp;=&nbsp;|&Delta;intensity| exactly (valence term neutral)</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-10</td><td>Metrics</td><td>route&nbsp;=&nbsp;CONTAINMENT, last user_text contains &ldquo;trauma&rdquo;, consent&nbsp;=&nbsp;NONE</td><td>CIS&nbsp;=&nbsp;0.0 (fires regardless of current route)</td><td class="mono">SR-02</td></tr>
+            <tr><td class="id">TC-11</td><td>Metrics</td><td>route&nbsp;=&nbsp;NORMAL, keyword present, consent&nbsp;=&nbsp;EXPLICIT</td><td>CIS&nbsp;=&nbsp;1.0</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-12</td><td>Metrics</td><td>same turn, Router transitions NORMAL&rarr;QUARANTINE</td><td>CIS reflects the pinned pre-transition route per the documented pipeline order</td><td class="mono">SR-25</td></tr>
+            <tr><td class="id">TC-13</td><td>Router</td><td>suicidality trigger from NORMAL</td><td>route&nbsp;&rarr;&nbsp;QUARANTINE; response contains &ldquo;988&rdquo; or &ldquo;findahelpline&rdquo;</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-14</td><td>Router</td><td>trauma keyword, consent&nbsp;&ne;&nbsp;EXPLICIT, from NORMAL</td><td>route&nbsp;&rarr;&nbsp;CONSENT_GATE</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-15</td><td>Router</td><td>explicit consent given while in CONSENT_GATE</td><td>route&nbsp;&rarr;&nbsp;NORMAL</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-16</td><td>Router</td><td>consent declined / gate times out</td><td>route&nbsp;&rarr;&nbsp;NORMAL (restricted, trauma-depth disabled)</td><td class="mono">SR-15</td></tr>
+            <tr><td class="id">TC-17</td><td>Router</td><td>QUARANTINE, &ldquo;stabilized&rdquo; condition met N times</td><td>route&nbsp;&rarr;&nbsp;SAFE_MODE (not directly to CONTAINMENT)</td><td class="mono">SR-01</td></tr>
+            <tr><td class="id">TC-18</td><td>Router</td><td>SAFE_MODE, 3 consecutive safe turns</td><td>route&nbsp;&rarr;&nbsp;CONTAINMENT</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-19</td><td>Router</td><td>CONTAINMENT, 4 consecutive safe turns</td><td>route&nbsp;&rarr;&nbsp;NORMAL</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-20</td><td>Router</td><td>SAFE_MODE, safe-turn count met but dwell-time floor not met</td><td>route stays SAFE_MODE (time floor blocks downgrade)</td><td class="mono">SR-13</td></tr>
+            <tr><td class="id">TC-21</td><td>Router</td><td>CONTAINMENT, a safe-turn signal and a fresh suicidality re-trigger in the same turn</td><td>QUARANTINE wins per the documented precedence rule</td><td class="mono">SR-16</td></tr>
+            <tr><td class="id">TC-22</td><td>Router</td><td>attempt to call Responder without a Router-issued token</td><td>raises / fails to type-check &mdash; structurally non-bypassable</td><td class="mono">SR-17</td></tr>
+            <tr><td class="id">TC-23</td><td>Router</td><td>relapse: fresh suicidality trigger while in CONTAINMENT</td><td>route&nbsp;&rarr;&nbsp;QUARANTINE (recovery does not suppress new triggers)</td><td class="mono">SR-16</td></tr>
+            <tr><td class="id">TC-24</td><td>Router</td><td>full path from a cold session</td><td>NORMAL&rarr;QUARANTINE&rarr;SAFE_MODE&rarr;CONTAINMENT&rarr;NORMAL traversed with no skipped state</td><td class="mono">SR-01</td></tr>
+            <tr><td class="id">TC-25</td><td>Recovery</td><td>consecutive safe turns interrupted by one non-safe turn</td><td>counter resets to zero (or per documented reset rule)</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-26</td><td>Recovery</td><td>two counters (SAFE_MODE&rarr;CONTAINMENT, CONTAINMENT&rarr;NORMAL) tracked in the same session</td><td>counters are independent; one resetting doesn't affect the other</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-27</td><td>Recovery</td><td>burst of 4 trivial messages sent within 1 second during CONTAINMENT</td><td>downgrade blocked until minimum dwell time elapses</td><td class="mono">SR-13</td></tr>
+            <tr><td class="id">TC-28</td><td>Recovery</td><td>&ldquo;stabilized&rdquo; evaluated against the shared safe-turn primitive</td><td>identical predicate to SAFE_MODE&rarr;CONTAINMENT's safe-turn check</td><td class="mono">SR-06</td></tr>
+            <tr><td class="id">TC-29</td><td>Ledger</td><td>first row of a brand-new session</td><td><code>prev_hash</code> equals the documented genesis value</td><td class="mono">SR-20</td></tr>
+            <tr><td class="id">TC-30</td><td>Ledger</td><td>any row's payload edited post-hoc, chain replayed</td><td>HMAC verification fails at the edited row and every row after it</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-31</td><td>Ledger</td><td>row appended with the live HMAC key (simulating a compromised operator)</td><td>chain re-verifies successfully &mdash; documented as expected, not a false &ldquo;secure&rdquo; claim</td><td class="mono">SR-14</td></tr>
+            <tr><td class="id">TC-32</td><td>Ledger</td><td>raw user_text containing a real name or phone number</td><td>exported row contains no raw text, only <code>text_sha256</code> and the Bloom filter</td><td class="mono">SR-10</td></tr>
+            <tr><td class="id">TC-33</td><td>Ledger</td><td>consent revoked mid-session</td><td>new <code>REVOKE_CONSENT</code> row appended; all prior rows byte-identical to before</td><td class="mono">SR-21</td></tr>
+            <tr><td class="id">TC-34</td><td>Auditor</td><td>export where a policy keyword genuinely appeared in the source turn</td><td><code>full_replay_audit</code> confirms the Bloom-derived route, no finding raised</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-35</td><td>Auditor</td><td>export's <code>route_decided</code> tampered to NORMAL after a suicidality-triggering turn</td><td>finding raised with <code>severity: CRITICAL</code>, structured fields populated</td><td class="mono">SR-22</td></tr>
+            <tr><td class="id">TC-36</td><td>Auditor</td><td>attempt to test an arbitrary non-policy phrase for Bloom membership using an exported row's salt</td><td>fails / is not possible without the auditor's master key</td><td class="mono">SR-08</td></tr>
+            <tr><td class="id">TC-37</td><td>Auditor</td><td>10,000 synthetic rows, phrases outside the policy list</td><td>empirical false-positive rate stays under the configured target</td><td class="mono">SR-19</td></tr>
+            <tr><td class="id">TC-38</td><td>Export/Signing</td><td>signed export verified with the published pubkey</td><td>signature verifies; fingerprint matches the published key</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-39</td><td>Export/Signing</td><td>signed export verified with a different (wrong) pubkey</td><td>verification fails</td><td>&mdash;</td></tr>
+            <tr><td class="id">TC-40</td><td>Export/Signing</td><td>attempt key rotation mid-deployment</td><td>documented as unsupported in v1.0.1 (matches Milestone M9 scoping)</td><td class="mono">SR-18</td></tr>
+            <tr><td class="id">TC-41</td><td>Consent</td><td>consent granted with a scope, action requested outside that scope</td><td>CONSENT_GATE re-triggers for the out-of-scope action</td><td class="mono">SR-07</td></tr>
+            <tr><td class="id">TC-42</td><td>Consent</td><td>consent granted, then its expiry window elapses</td><td>consent reverts to a non-explicit level; CONSENT_GATE re-arms</td><td class="mono">SR-07</td></tr>
+            <tr><td class="id">TC-43</td><td>Consent</td><td>ConsentLevel transitions across all four documented values</td><td>only the documented transitions succeed; others raise</td><td class="mono">SR-12</td></tr>
+            <tr><td class="id">TC-44</td><td>Consent</td><td>consent revoked, same session continues</td><td>subsequent trauma-adjacent turn re-triggers CONSENT_GATE</td><td class="mono">SR-21</td></tr>
+            <tr><td class="id">TC-45</td><td>CI / Coverage</td><td>full suite run with <code>--cov-branch --cov-fail-under=100</code></td><td>build fails if any branch introduced by the above (esp. the corrected router table) is uncovered</td><td>&mdash;</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      Prepared as a specification and interface review of the uploaded <span class="mono">eios_v1_0_1_spec_and_patches.zip</span> bundle. No base <span class="mono">eios/</span> repository was available for this review; re-run the patch and test assessments in Section&nbsp;&ldquo;Patch targets&rdquo; once it is.
+    </footer>
+  </main>
+</div>

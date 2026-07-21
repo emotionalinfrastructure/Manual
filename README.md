@@ -10,6 +10,7 @@ generates the reply.
 frontend/            Static demo chat UI + admin console (vanilla HTML/CSS/JS)
 middleware-worker/    Cloudflare Worker implementing POST /v1/turn
 sdk/                  @emotional-infrastructure/sdk -- standalone TypeScript governance library
+eios-review/          Spec review + implementation plan for an unrelated product (EIOS v1.0.1)
 ```
 
 ## SDK
