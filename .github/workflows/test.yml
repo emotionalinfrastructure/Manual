@@ -1,0 +1,30 @@
+name: middleware-worker tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: middleware-worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: middleware-worker/package-lock.json
+
+      - name: Install dependencies (from lockfile)
+        run: npm ci
+
+      # Runs the full suite AND enforces the coverage floor: node exits
+      # non-zero if line/branch/function coverage drops below the thresholds
+      # declared in the test:coverage script, so a regression fails CI.
+      - name: Run tests with coverage thresholds
+        run: npm run test:coverage

@@ -8,7 +8,7 @@ const DEFAULT_MODEL = "claude-sonnet-5";
 const BASE_PERSONA =
   "You are a helpful, concise AI assistant embedded in a demo product. Keep replies to 2-3 sentences unless asked for more.";
 
-function buildSystemPrompt(directive) {
+export function buildSystemPrompt(directive) {
   if (!directive) return BASE_PERSONA;
   return (
     `${BASE_PERSONA}\n\nCompliance directive from the emotional-infrastructure middleware ` +
