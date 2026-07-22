@@ -9,7 +9,10 @@
     "dev": "node dev-server.mjs",
     "deploy": "wrangler deploy",
     "test": "node --test",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude='**/*.test.mjs' --test-coverage-exclude='dev-server.mjs' --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=90"
+    "test:coverage": "node run-coverage.mjs"
+  },
+  "engines": {
+    "node": ">=22.8"
   },
   "dependencies": {},
   "devDependencies": {
