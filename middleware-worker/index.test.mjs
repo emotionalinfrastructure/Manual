@@ -127,8 +127,158 @@ test("API_KEY enforcement rejects missing/incorrect bearer token", async () => {
   const res = await worker.fetch(turnRequest("s", "hello"), securedEnv);
   assert.equal(res.status, 401);
 
+  const wrongReq = turnRequest("s", "hello");
+  wrongReq.headers.set("authorization", "Bearer wrong");
+  const resWrong = await worker.fetch(wrongReq, securedEnv);
+  assert.equal(resWrong.status, 401);
+
   const authedReq = turnRequest("s", "hello");
   authedReq.headers.set("authorization", "Bearer secret");
   const res2 = await worker.fetch(authedReq, securedEnv);
   assert.equal(res2.status, 200);
+});
+
+// --- HTTP error contracts ---
+
+test("malformed JSON body returns 400 invalid_json", async () => {
+  const worker = createWorker();
+  const res = await worker.fetch(
+    new Request(`${BASE}/v1/turn`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{not json",
+    }),
+    env
+  );
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).error, "invalid_json");
+});
+
+test("missing or non-string session_id returns 400", async () => {
+  const worker = createWorker();
+  for (const payload of [{ user_message: "hi" }, { session_id: 7, user_message: "hi" }]) {
+    const res = await worker.fetch(
+      new Request(`${BASE}/v1/turn`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+      env
+    );
+    assert.equal(res.status, 400);
+    assert.equal((await res.json()).error, "session_id is required");
+  }
+});
+
+test("non-string user_message returns 400", async () => {
+  const worker = createWorker();
+  const res = await worker.fetch(
+    new Request(`${BASE}/v1/turn`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ session_id: "s", user_message: 42 }),
+    }),
+    env
+  );
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).error, "user_message is required");
+});
+
+test("unknown routes and wrong methods return 404 not_found", async () => {
+  const worker = createWorker();
+
+  const unknown = await worker.fetch(new Request(`${BASE}/v2/nope`), env);
+  assert.equal(unknown.status, 404);
+  assert.equal((await unknown.json()).error, "not_found");
+
+  const wrongMethod = await worker.fetch(new Request(`${BASE}/v1/turn`, { method: "GET" }), env);
+  assert.equal(wrongMethod.status, 404);
+
+  const postToSession = await worker.fetch(
+    new Request(`${BASE}/v1/session/s`, { method: "POST", body: "{}" }),
+    env
+  );
+  assert.equal(postToSession.status, 404);
+});
+
+test("unknown session returns 404 session_not_found", async () => {
+  const worker = createWorker();
+  const res = await worker.fetch(new Request(`${BASE}/v1/session/never-seen`), env);
+  assert.equal(res.status, 404);
+  assert.equal((await res.json()).error, "session_not_found");
+});
+
+// --- CORS ---
+
+test("OPTIONS preflight returns CORS headers", async () => {
+  const worker = createWorker();
+  const res = await worker.fetch(new Request(`${BASE}/v1/turn`, { method: "OPTIONS" }), env);
+  assert.equal(res.headers.get("Access-Control-Allow-Origin"), "*");
+  assert.ok(res.headers.get("Access-Control-Allow-Methods").includes("POST"));
+  assert.ok(res.headers.get("Access-Control-Allow-Headers").includes("Authorization"));
+});
+
+test("CORS headers are present on API responses, including errors", async () => {
+  const worker = createWorker();
+  const ok = await worker.fetch(turnRequest("s", "hi"), env);
+  assert.equal(ok.headers.get("Access-Control-Allow-Origin"), "*");
+
+  const err = await worker.fetch(new Request(`${BASE}/v2/nope`), env);
+  assert.equal(err.headers.get("Access-Control-Allow-Origin"), "*");
+});
+
+// --- history limits ---
+
+test("message history is trimmed to the configured cap while counters keep counting", async () => {
+  const worker = createWorker();
+  for (let i = 0; i < 13; i++) {
+    await worker.fetch(turnRequest("s", `message number ${i}`), env);
+  }
+  const res = await worker.fetch(new Request(`${BASE}/v1/session/s`), env);
+  const body = await res.json();
+  assert.equal(body.turn_count, 13); // counter is not trimmed
+  assert.equal(body.messages.length, 20); // 13 turns = 26 messages, capped at 20
+  // Oldest messages fell off; the most recent turn is last.
+  assert.equal(body.messages[body.messages.length - 2].content, "message number 12");
+});
+
+// --- state isolation ---
+
+test("separate worker instances do not share session state", async () => {
+  const workerA = createWorker();
+  const workerB = createWorker();
+  await workerA.fetch(turnRequest("shared-id", "hello from A"), env);
+
+  const inA = await workerA.fetch(new Request(`${BASE}/v1/session/shared-id`), env);
+  assert.equal(inA.status, 200);
+
+  const inB = await workerB.fetch(new Request(`${BASE}/v1/session/shared-id`), env);
+  assert.equal(inB.status, 404); // same id, different instance, no state
+});
+
+test("sessions with different ids are independent within one instance", async () => {
+  const worker = createWorker();
+  await worker.fetch(turnRequest("one", "I want to kill myself"), env);
+  await worker.fetch(turnRequest("two", "lovely weather"), env);
+
+  const one = await (await worker.fetch(new Request(`${BASE}/v1/session/one`), env)).json();
+  const two = await (await worker.fetch(new Request(`${BASE}/v1/session/two`), env)).json();
+  assert.equal(one.crisis_turn_count, 1);
+  assert.equal(two.crisis_turn_count, 0);
+});
+
+// --- repeated-crisis boundary through the HTTP surface ---
+
+test("third turn after two crisis turns escalates even a benign message", async () => {
+  const worker = createWorker();
+  await worker.fetch(turnRequest("s", "I want to kill myself"), env);
+  await worker.fetch(turnRequest("s", "there is no reason to live"), env);
+
+  const res = await worker.fetch(turnRequest("s", "anyway, nice weather today"), env);
+  const body = await res.json();
+  assert.deepEqual(body.safety.flags, []); // message itself is benign
+  assert.equal(body.safety.action, "escalate"); // session history escalates it
+  assert.equal(body.safety.severity, "high");
+  assert.ok(body.suggested_system_directive.includes("ongoing"));
+  assert.equal(body.crisis_turn_count, 2); // benign turn did not increment
 });
