@@ -1,0 +1,23 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: middleware-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # No install step: the worker has zero runtime dependencies and the
+      # suite uses only node:test. Coverage thresholds (lines 95 / branches
+      # 85 / functions 80) are enforced by the flags in test:coverage —
+      # dropping below them fails this job.
+      - run: npm run test:coverage
