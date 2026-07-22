@@ -61,6 +61,7 @@ function updateSessionPanel(result) {
   sessionPanel.classList.remove("hidden");
   document.getElementById("s-turns").textContent = result.turn;
   document.getElementById("s-trend").textContent = result.session_trend;
+  document.getElementById("s-crisis").textContent = result.crisis_turn_count;
 }
 
 form.addEventListener("submit", async (event) => {
@@ -77,6 +78,9 @@ form.addEventListener("submit", async (event) => {
 
   try {
     const res = await fetch(`${apiBase}/v1/turn`, {
+      // apiBase "" -> relative "/v1/turn", i.e. same origin as this page.
+      // That's the default because the Worker is deployed with [assets]
+      // serving this frontend from the same origin as the API.
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ session_id: sessionId, user_message: message }),
@@ -95,7 +99,7 @@ form.addEventListener("submit", async (event) => {
   } catch (err) {
     appendMessage(
       "error",
-      `Could not reach the middleware at ${apiBase}. Is it running? (npm run dev in middleware-worker/)`
+      `Could not reach the middleware at ${apiBase || "(same origin)"}. Is it running? (npm run dev in middleware-worker/)`
     );
   } finally {
     input.disabled = false;

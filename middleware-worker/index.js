@@ -100,6 +100,7 @@ async function handleTurn(request, env) {
     },
     suggested_system_directive: policy.system_directive,
     session_trend: summarizeTrend(session.sentimentHistory),
+    crisis_turn_count: session.crisisTurnCount,
     assistant_reply: reply.text,
     llm_backend: reply.backend,
     ...(reply.note ? { llm_note: reply.note } : {}),

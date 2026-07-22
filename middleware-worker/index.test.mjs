@@ -32,6 +32,12 @@ test("crisis language triggers escalate with a directive", async () => {
   assert.equal(body.safety.action, "escalate");
   assert.equal(body.safety.severity, "high");
   assert.ok(body.suggested_system_directive.includes("crisis"));
+  // Crisis phrases must register as negative affect even when no individual
+  // token is in the emotion lexicon.
+  assert.ok(body.emotional_state.sentiment_score < 0);
+  assert.equal(body.emotional_state.primary_emotion, "distress");
+  assert.ok(body.emotional_state.intensity > 0);
+  assert.equal(body.crisis_turn_count, 1);
 });
 
 test("neutral positive message is allowed", async () => {

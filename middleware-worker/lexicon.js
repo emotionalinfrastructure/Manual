@@ -64,12 +64,19 @@ export function analyzeMessage(text) {
     emotionCounts[emotion] = tokens.filter((t) => words.includes(t)).length;
   }
 
+  const crisisMatches = containsPhrase(lowerText, CRISIS_PHRASES);
+  const abuseMatches = containsPhrase(lowerText, ABUSE_PHRASES);
+
   let positiveHits = 0;
   let negativeHits = 0;
   for (const t of tokens) {
     if (POSITIVE_WORDS.has(t)) positiveHits++;
     if (NEGATIVE_WORDS.has(t)) negativeHits++;
   }
+  // Crisis/abuse phrases are strong negative evidence even when no single
+  // token is in the lexicon ("I want to kill myself" has none) — without
+  // this, a crisis message scores sentiment 0 / intensity 0.
+  negativeHits += (crisisMatches.length + abuseMatches.length) * 2;
 
   const totalHits = positiveHits + negativeHits;
   const sentimentScore = totalHits === 0 ? 0 : (positiveHits - negativeHits) / totalHits;
@@ -82,11 +89,11 @@ export function analyzeMessage(text) {
       primaryEmotion = emotion;
     }
   }
+  if (primaryEmotion === "neutral" && crisisMatches.length) {
+    primaryEmotion = "distress";
+  }
 
   const intensity = tokens.length === 0 ? 0 : Math.min(1, totalHits / Math.max(4, tokens.length * 0.5));
-
-  const crisisMatches = containsPhrase(lowerText, CRISIS_PHRASES);
-  const abuseMatches = containsPhrase(lowerText, ABUSE_PHRASES);
   const emails = text ? text.match(EMAIL_RE) || [] : [];
   const phones = text ? text.match(PHONE_RE) || [] : [];
 
