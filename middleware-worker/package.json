@@ -8,7 +8,11 @@
     "start": "wrangler dev",
     "dev": "node dev-server.mjs",
     "deploy": "wrangler deploy",
-    "test": "node --test"
+    "test": "node --test",
+    "test:coverage": "node run-coverage.mjs"
+  },
+  "engines": {
+    "node": ">=22.8"
   },
   "dependencies": {},
   "devDependencies": {

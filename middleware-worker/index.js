@@ -124,6 +124,13 @@ function handleGetSession(sessionId) {
   });
 }
 
+// Test-only hook: clears all in-memory session state so each test can start
+// from a known-empty store. Not used by the running Worker (the module-level
+// `sessions` Map is otherwise only mutated through request handling).
+export function __resetState() {
+  sessions.clear();
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
