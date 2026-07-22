@@ -61,6 +61,7 @@ function updateSessionPanel(result) {
   sessionPanel.classList.remove("hidden");
   document.getElementById("s-turns").textContent = result.turn;
   document.getElementById("s-trend").textContent = result.session_trend;
+  document.getElementById("s-crisis").textContent = result.crisis_turn_count;
 }
 
 form.addEventListener("submit", async (event) => {
