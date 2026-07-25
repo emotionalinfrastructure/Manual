@@ -80,7 +80,18 @@ export async function generateReply({ apiKey, model, systemDirective, action, hi
 
     const data = await res.json();
     const text = (data.content || []).map((block) => block.text || "").join("").trim();
-    return { text: text || simulateReply(action, userMessage), backend: "anthropic" };
+    if (!text) {
+      // The call succeeded but yielded no usable text. The reply below is
+      // locally generated, so `backend` reports "simulated": the field
+      // describes where the text actually came from, and a caller must not
+      // attribute canned wording to the model.
+      return {
+        text: simulateReply(action, userMessage),
+        backend: "simulated",
+        note: "llm_empty_content: API returned no usable text",
+      };
+    }
+    return { text, backend: "anthropic" };
   } catch (err) {
     return {
       text: simulateReply(action, userMessage),
