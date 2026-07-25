@@ -19,6 +19,12 @@ pre code { background: none; padding: 0; }
 .msg-analysis { background: #f3f4f6; border: 1px solid #e5e7eb; }
 .msg-analysis.action-soften { border-color: #f59e0b; }
 .msg-analysis.action-escalate { border-color: #dc2626; background: #fef2f2; }
+/* A third-party concern escalates too, but it is not the same event as a
+   first-person disclosure — the panel must not render them identically. */
+.msg-analysis.action-escalate.severity-medium { border-color: #ea580c; background: #fff7ed; }
+.msg-analysis.action-allow.severity-low { border-color: #cbd5e1; }
+.badge-severity { margin-left: 0.35rem; background: #e2e8f0; color: #475569; }
+.action-escalate.severity-medium .badge { background: #ffedd5; color: #9a3412; }
 .analysis-details { margin-top: 0.4rem; display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
 
 .msg-assistant { align-self: flex-start; background: #ecfdf5; border: 1px solid #a7f3d0; }
