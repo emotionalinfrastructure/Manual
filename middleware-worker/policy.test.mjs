@@ -165,3 +165,74 @@ test("summarizeTrend: falling history is declining", () => {
 test("summarizeTrend: flat history is stable", () => {
   assert.equal(summarizeTrend([0.1, 0.1, 0.1, 0.1]), "stable");
 });
+
+// --- Crisis context drives a proportionate response --------------------------
+
+function crisisAnalysis(context, extra = {}) {
+  return {
+    flags: ["crisis_language"],
+    crisis_context: context,
+    sentiment_score: 0,
+    intensity: 0,
+    ...extra,
+  };
+}
+
+test("first-person disclosure escalates at high severity", () => {
+  const p = decidePolicy(crisisAnalysis("first_person"), { crisisTurnCount: 0 });
+  assert.equal(p.action, "escalate");
+  assert.equal(p.severity, "high");
+  assert.match(p.system_directive, /surface crisis resources/);
+});
+
+test("third-party concern escalates at medium severity with its own directive", () => {
+  const p = decidePolicy(crisisAnalysis("third_party"), { crisisTurnCount: 0 });
+  assert.equal(p.action, "escalate");
+  assert.equal(p.severity, "medium");
+  // Still surfaces resources, but addresses the user as a helper.
+  assert.match(p.system_directive, /describing someone else/);
+  assert.match(p.system_directive, /988/);
+  assert.doesNotMatch(p.system_directive, /do not minimize their feelings/);
+});
+
+test("topic mention is allowed and explicitly does not open with crisis resources", () => {
+  const p = decidePolicy(crisisAnalysis("topic_mention"), { crisisTurnCount: 0 });
+  assert.equal(p.action, "allow");
+  assert.equal(p.severity, "low");
+  assert.match(p.system_directive, /do not open with crisis resources/);
+  assert.match(p.system_directive, /if the conversation turns personal/);
+});
+
+test("missing crisis_context falls back to the riskier first-person reading", () => {
+  // Defensive: an analysis from an older/partial producer must not silently
+  // downgrade a crisis flag to a topic mention.
+  const p = decidePolicy({ flags: ["crisis_language"], sentiment_score: 0, intensity: 0 }, {
+    crisisTurnCount: 0,
+  });
+  assert.equal(p.action, "escalate");
+  assert.equal(p.severity, "high");
+});
+
+test("PII still stacks onto each crisis context", () => {
+  for (const [context, action] of [
+    ["first_person", "escalate"],
+    ["third_party", "escalate"],
+    ["topic_mention", "allow"],
+  ]) {
+    const p = decidePolicy(
+      crisisAnalysis(context, { flags: ["crisis_language", "pii_detected"] }),
+      { crisisTurnCount: 0 }
+    );
+    assert.equal(p.action, action, context);
+    assert.match(p.system_directive, /personal identifying information/, context);
+  }
+});
+
+test("session-level repeated-crisis escalation still overrides a topic mention", () => {
+  // A user with two prior first-person crisis turns is treated as an ongoing
+  // concern even if the current message is only subject matter.
+  const p = decidePolicy(crisisAnalysis("topic_mention"), { crisisTurnCount: 2 });
+  assert.equal(p.action, "escalate");
+  assert.equal(p.severity, "high");
+  assert.match(p.system_directive, /ongoing/);
+});
