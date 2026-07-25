@@ -78,24 +78,29 @@ test("falls back to a simulated reply with a note when fetch throws", async () =
   assert.match(reply.text, /here with you/);
 });
 
-test("empty content array falls back to a simulated reply", async () => {
+// When the call succeeds but yields no usable text, the returned text is
+// locally generated — so `backend` must report "simulated". Reporting
+// "anthropic" here would attribute canned wording to the model.
+
+test("empty content array falls back to a simulated reply reported as simulated", async () => {
   const reply = await generateReply({
     ...baseArgs,
     action: "escalate",
     fetchImpl: async () => jsonResponse({ content: [] }),
   });
-  // Backend stays "anthropic" (the call succeeded) but the text is the fallback.
-  assert.equal(reply.backend, "anthropic");
+  assert.equal(reply.backend, "simulated");
+  assert.match(reply.note, /llm_empty_content/);
   assert.match(reply.text, /988/);
 });
 
-test("whitespace-only content falls back to a simulated reply", async () => {
+test("whitespace-only content falls back to a simulated reply reported as simulated", async () => {
   const reply = await generateReply({
     ...baseArgs,
     action: "soften",
     fetchImpl: async () => jsonResponse({ content: [{ text: "   \n  " }] }),
   });
-  assert.equal(reply.backend, "anthropic");
+  assert.equal(reply.backend, "simulated");
+  assert.match(reply.note, /llm_empty_content/);
   assert.match(reply.text, /here with you/);
 });
 
@@ -106,8 +111,19 @@ test("missing/malformed content field falls back without throwing", async () => 
     userMessage: "just a question",
     fetchImpl: async () => jsonResponse({ unexpected: true }),
   });
-  assert.equal(reply.backend, "anthropic");
+  assert.equal(reply.backend, "simulated");
+  assert.match(reply.note, /llm_empty_content/);
   assert.match(reply.text, /Simulated reply/);
+});
+
+test("a successful reply with real text reports the anthropic backend and no note", async () => {
+  const reply = await generateReply({
+    ...baseArgs,
+    fetchImpl: async () => jsonResponse({ content: [{ text: "genuine model output" }] }),
+  });
+  assert.equal(reply.backend, "anthropic");
+  assert.equal(reply.text, "genuine model output");
+  assert.equal(reply.note, undefined);
 });
 
 // --- Simulated backend (no API key) -----------------------------------------
