@@ -403,3 +403,24 @@ test("a first-person disclosure increments the crisis counter exactly once", asy
   const { body: notCounted } = await turn("once", "my friend is suicidal too");
   assert.equal(notCounted.crisis_turn_count, 2); // third-party adds nothing
 });
+
+test("safety.crisis_context is exposed so callers can tell escalations apart", async () => {
+  // Two messages, same action, materially different events. Without this
+  // field a caller (or the demo UI) cannot distinguish them.
+  const { body: disclosure } = await turn("cc1", "I want to kill myself");
+  assert.equal(disclosure.safety.action, "escalate");
+  assert.equal(disclosure.safety.crisis_context, "first_person");
+
+  const { body: concern } = await turn("cc2", "my friend is suicidal");
+  assert.equal(concern.safety.action, "escalate"); // same action...
+  assert.equal(concern.safety.crisis_context, "third_party"); // ...different reason
+  assert.notEqual(disclosure.safety.severity, concern.safety.severity);
+
+  const { body: topic } = await turn("cc3", "Suicide rates declined last year");
+  assert.equal(topic.safety.crisis_context, "topic_mention");
+});
+
+test("safety.crisis_context is null when no crisis vocabulary is present", async () => {
+  const { body } = await turn("cc4", "thanks, that was helpful");
+  assert.equal(body.safety.crisis_context, null);
+});

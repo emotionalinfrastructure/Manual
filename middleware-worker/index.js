@@ -90,6 +90,11 @@ export function createWorker({ sessions = createSessionStore() } = {}) {
         flags: analysis.flags,
         action: policy.action,
         severity: policy.severity,
+        // Why this action was chosen, not just what it was. Without it a
+        // caller sees "escalate" for both a disclosure and a question about
+        // a friend, with no way to tell the two apart. null when no crisis
+        // vocabulary was present.
+        crisis_context: analysis.crisis_context ?? null,
       },
       suggested_system_directive: policy.system_directive,
       session_trend: summarizeTrend(session.sentimentHistory),

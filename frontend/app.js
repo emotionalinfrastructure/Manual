@@ -36,22 +36,61 @@ function appendReply(result) {
   log.scrollTop = log.scrollHeight;
 }
 
-function appendAnalysis(result) {
+// Who the crisis language referred to. Two messages can both escalate for
+// very different reasons, and the panel has to say which.
+const CONTEXT_LABEL = {
+  first_person: "first-person disclosure",
+  third_party: "concern for someone else",
+  topic_mention: "subject discussed, no one at risk",
+};
+
+function row(label, value) {
   const el = document.createElement("div");
-  el.className = `msg msg-analysis action-${result.safety.action}`;
+  const strong = document.createElement("strong");
+  strong.textContent = `${label} `;
+  el.appendChild(strong);
+  // textContent, not innerHTML: directive text is server-authored today, but
+  // building it as a node means a future field carrying user text can't
+  // become an injection point.
+  el.appendChild(document.createTextNode(value));
+  return el;
+}
+
+function appendAnalysis(result) {
+  const { safety, emotional_state: emotion } = result;
+  const el = document.createElement("div");
+  // Severity is part of the class so escalate/high and escalate/medium are
+  // visually distinct rather than an identical red block.
+  el.className = `msg msg-analysis action-${safety.action} severity-${safety.severity}`;
 
   const badge = document.createElement("span");
   badge.className = "badge";
-  badge.textContent = ACTION_LABEL[result.safety.action] || result.safety.action;
+  badge.textContent = ACTION_LABEL[safety.action] || safety.action;
   el.appendChild(badge);
+
+  const sev = document.createElement("span");
+  sev.className = "badge badge-severity";
+  sev.textContent = `severity: ${safety.severity}`;
+  el.appendChild(sev);
 
   const details = document.createElement("div");
   details.className = "analysis-details";
-  details.innerHTML = `
-    <div><strong>Emotion:</strong> ${result.emotional_state.primary_emotion} (sentiment ${result.emotional_state.sentiment_score}, intensity ${result.emotional_state.intensity})</div>
-    <div><strong>Flags:</strong> ${result.safety.flags.length ? result.safety.flags.join(", ") : "none"}</div>
-    ${result.suggested_system_directive ? `<div><strong>Injected directive:</strong> ${result.suggested_system_directive}</div>` : ""}
-  `;
+  details.appendChild(
+    row(
+      "Emotion:",
+      `${emotion.primary_emotion} (sentiment ${emotion.sentiment_score}, intensity ${emotion.intensity})`
+    )
+  );
+  details.appendChild(row("Flags:", safety.flags.length ? safety.flags.join(", ") : "none"));
+  if (safety.crisis_context) {
+    details.appendChild(
+      row("Crisis context:", CONTEXT_LABEL[safety.crisis_context] || safety.crisis_context)
+    );
+  }
+  if (result.suggested_system_directive) {
+    details.appendChild(row("Injected directive:", result.suggested_system_directive));
+  }
+
   el.appendChild(details);
   log.appendChild(el);
   log.scrollTop = log.scrollHeight;
