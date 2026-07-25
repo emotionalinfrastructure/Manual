@@ -18,3 +18,18 @@ directory = "../frontend"
 
 [vars]
 ANTHROPIC_MODEL = "claude-sonnet-5"
+
+# Session storage. The Worker persists per-session state (turn count, sentiment
+# history, crisis count, and message history) in this KV namespace, keyed by
+# session id, so state survives across isolates, requests, and deploys. If this
+# binding is absent the Worker falls back to an in-memory Map (single-isolate
+# only) — handy for the demo, not for production.
+#
+# Before your first deploy, create the namespace and paste its id below:
+#     npx wrangler kv namespace create SESSIONS
+#     npx wrangler kv namespace create SESSIONS --preview   # for `wrangler dev`
+# then replace the placeholder ids with the ones it prints.
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_KV_PREVIEW_NAMESPACE_ID"

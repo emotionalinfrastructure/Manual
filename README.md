@@ -31,7 +31,8 @@ locally.
   "suggested_system_directive": "The user's message contains language associated with self-harm...",
   "session_trend": "declining",
   "assistant_reply": "I want to make sure you're safe first...",
-  "llm_backend": "anthropic"
+  "llm_backend": "anthropic",
+  "session_store": "kv"
 }
 ```
 
@@ -48,15 +49,24 @@ locally.
   action-aware simulated reply (still distinct per `allow`/`soften`/`escalate`)
   so the full pipeline runs with zero external dependencies.
 - **`middleware-worker/index.js`** — the Worker's HTTP surface (`/v1/turn`,
-  `/v1/session/:id`, CORS, optional `API_KEY` bearer auth) plus in-memory
-  per-session state (turn count, sentiment trend, crisis count, and the
+  `/v1/session/:id`, CORS, optional `API_KEY` bearer auth) plus the per-session
+  state it maintains (turn count, sentiment trend, crisis count, and the
   message history used as LLM context).
+- **`middleware-worker/store.js`** — the session-persistence layer. When a
+  `SESSIONS` KV binding is present, session records are stored in Cloudflare
+  KV keyed by `session:<id>` (with a 30-day TTL), so state survives across
+  isolates, requests, and deploys. With no binding it falls back to an
+  in-memory `Map` — single-isolate only, but keeps the Node dev-server and the
+  tests running with zero configuration. Each response reports which backend
+  is active via `session_store: "kv" | "memory"`.
 
 This is a demo-grade rule engine, not a clinical risk model — the crisis
 phrase list is narrow and literal by design. A production deployment should
-route flagged messages to a reviewed detection service and back session state
-with a Durable Object or KV instead of the in-memory `Map` used here (which
-only persists for the lifetime of a single Worker isolate).
+route flagged messages to a reviewed detection service. Session state is
+already durable when KV is configured (see below); note that KV is eventually
+consistent, so two near-simultaneous turns on the *same* session can race on
+the read-modify-write — a Durable Object would serialize those if strict
+per-session ordering ever matters.
 
 ## Run the demo
 
@@ -111,10 +121,21 @@ whole demo.
 
 ```bash
 cd middleware-worker
+
+# One-time: create the KV namespace that holds session state, then paste the
+# ids it prints into the [[kv_namespaces]] block in wrangler.toml.
+npx wrangler kv namespace create SESSIONS
+npx wrangler kv namespace create SESSIONS --preview   # for `wrangler dev`
+
 npx wrangler deploy
 npx wrangler secret put API_KEY             # optional; unset = demo mode, no auth required
 npx wrangler secret put ANTHROPIC_API_KEY   # optional; unset = simulated replies
 ```
+
+Session state persists in that KV namespace. If you skip the namespace and
+deploy without the binding, the Worker still runs but falls back to
+per-isolate in-memory state (`session_store: "memory"`), which won't survive
+across isolates or deploys.
 
 **Option B — Cloudflare's Git integration ("Workers Builds"), no CLI or
 local credentials needed:** in the Cloudflare dashboard, Workers & Pages →

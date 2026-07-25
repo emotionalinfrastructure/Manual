@@ -317,3 +317,76 @@ test("error responses use a consistent { error } schema", async () => {
   assert.equal(Object.keys(body).length, 1);
   assert.equal(typeof body.error, "string");
 });
+
+// --- Session store backend (KV vs in-memory) --------------------------------
+
+// Minimal stand-in for a Workers KV namespace, injected as env.SESSIONS so the
+// worker exercises its real KV code path under Node with no network.
+function fakeKV() {
+  const m = new Map();
+  return {
+    _map: m,
+    async get(key, type) {
+      const v = m.get(key);
+      if (v === undefined) return null;
+      return type === "json" ? JSON.parse(v) : v;
+    },
+    async put(key, value) {
+      m.set(key, value);
+    },
+  };
+}
+
+test("the in-memory backend is reported when no KV binding is present", async () => {
+  const { body } = await turn("mem1", "hello there");
+  assert.equal(body.session_store, "memory");
+});
+
+test("a KV binding routes session state through KV and reports it", async () => {
+  const kvEnv = { SESSIONS: fakeKV() };
+  const { body } = await turn("kv1", "hello there", kvEnv);
+  assert.equal(body.session_store, "kv");
+  // The session was actually written to the KV namespace.
+  assert.ok(kvEnv.SESSIONS._map.has("session:kv1"));
+});
+
+test("KV-backed session state persists across separate worker invocations", async () => {
+  const kvEnv = { SESSIONS: fakeKV() };
+  await turn("kv2", "I am furious and this is terrible", kvEnv);
+  await turn("kv2", "actually thanks, I feel great now", kvEnv);
+
+  const res = await worker.fetch(new Request(`${BASE}/v1/session/kv2`), kvEnv);
+  const body = await res.json();
+  assert.equal(body.turn_count, 2);
+  assert.equal(body.sentiment_history.length, 2);
+  assert.equal(body.messages.length, 4);
+  assert.equal(body.session_store, "kv");
+});
+
+test("crisis counting works the same through the KV backend", async () => {
+  const kvEnv = { SESSIONS: fakeKV() };
+  await turn("kv3", "I want to kill myself", kvEnv);
+  await turn("kv3", "I want to die", kvEnv);
+  const { body } = await turn("kv3", "anyway, what's the weather like", kvEnv);
+  assert.equal(body.safety.action, "escalate"); // repeated-crisis rule over KV
+  assert.equal(body.crisis_turn_count, 2);
+});
+
+test("unknown session over the KV backend still returns 404", async () => {
+  const kvEnv = { SESSIONS: fakeKV() };
+  const res = await worker.fetch(new Request(`${BASE}/v1/session/never`), kvEnv);
+  assert.equal(res.status, 404);
+  assert.equal((await res.json()).error, "session_not_found");
+});
+
+test("memory and KV backends keep separate state for the same session id", async () => {
+  const kvEnv = { SESSIONS: fakeKV() };
+  await turn("dup", "hello there", env); // in-memory
+  await turn("dup", "hello there", kvEnv); // KV
+  await turn("dup", "hello there", kvEnv); // KV again
+
+  const memRes = await worker.fetch(new Request(`${BASE}/v1/session/dup`), env);
+  const kvRes = await worker.fetch(new Request(`${BASE}/v1/session/dup`), kvEnv);
+  assert.equal((await memRes.json()).turn_count, 1);
+  assert.equal((await kvRes.json()).turn_count, 2);
+});

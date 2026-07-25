@@ -1,27 +1,14 @@
 import { analyzeMessage } from "./lexicon.js";
 import { decidePolicy, summarizeTrend } from "./policy.js";
 import { generateReply } from "./llm.js";
+import { createSessionStore, newSession, __resetMemory } from "./store.js";
 
-// In-memory session store. Good enough for a single-isolate demo; a real
-// deployment would back this with a Durable Object or KV so state survives
-// across isolates/requests. See README for the upgrade path.
-const sessions = new Map();
+// Session state lives behind the store abstraction (see store.js): Cloudflare
+// KV when the SESSIONS binding is present, an in-memory Map otherwise. That is
+// what lets state survive across isolates/requests/deploys in production while
+// the demo still runs with zero configuration.
 const MAX_HISTORY = 20;
 const MAX_MESSAGES = 20; // 10 user/assistant turns of LLM context
-
-function getSession(sessionId) {
-  if (!sessions.has(sessionId)) {
-    sessions.set(sessionId, {
-      turnCount: 0,
-      sentimentHistory: [],
-      crisisTurnCount: 0,
-      messages: [],
-      createdAt: new Date().toISOString(),
-      lastTurnAt: null,
-    });
-  }
-  return sessions.get(sessionId);
-}
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -42,7 +29,7 @@ function authorized(request, env) {
   return auth === `Bearer ${env.API_KEY}`;
 }
 
-async function handleTurn(request, env) {
+async function handleTurn(request, env, store) {
   if (!authorized(request, env)) {
     return json({ error: "unauthorized" }, { status: 401 });
   }
@@ -63,7 +50,7 @@ async function handleTurn(request, env) {
   }
 
   const analysis = analyzeMessage(user_message);
-  const session = getSession(session_id);
+  const session = (await store.load(session_id)) || newSession();
 
   const policy = decidePolicy(analysis, session);
 
@@ -85,6 +72,8 @@ async function handleTurn(request, env) {
   if (session.messages.length > MAX_MESSAGES) session.messages = session.messages.slice(-MAX_MESSAGES);
   session.lastTurnAt = new Date().toISOString();
 
+  await store.save(session_id, session);
+
   return json({
     session_id,
     turn: session.turnCount,
@@ -103,12 +92,13 @@ async function handleTurn(request, env) {
     crisis_turn_count: session.crisisTurnCount,
     assistant_reply: reply.text,
     llm_backend: reply.backend,
+    session_store: store.backend,
     ...(reply.note ? { llm_note: reply.note } : {}),
   });
 }
 
-function handleGetSession(sessionId) {
-  const session = sessions.get(sessionId);
+async function handleGetSession(store, sessionId) {
+  const session = await store.load(sessionId);
   if (!session) {
     return json({ error: "session_not_found" }, { status: 404 });
   }
@@ -121,14 +111,15 @@ function handleGetSession(sessionId) {
     messages: session.messages,
     created_at: session.createdAt,
     last_turn_at: session.lastTurnAt,
+    session_store: store.backend,
   });
 }
 
-// Test-only hook: clears all in-memory session state so each test can start
-// from a known-empty store. Not used by the running Worker (the module-level
-// `sessions` Map is otherwise only mutated through request handling).
+// Test-only hook: clears the in-memory backend so each test can start from a
+// known-empty store. Delegates to store.js; a no-op for the KV backend, which
+// tests drive through an injected fake namespace instead.
 export function __resetState() {
-  sessions.clear();
+  __resetMemory();
 }
 
 export default {
@@ -147,13 +138,15 @@ export default {
       });
     }
 
+    const store = createSessionStore(env);
+
     if (url.pathname === "/v1/turn" && request.method === "POST") {
-      return handleTurn(request, env);
+      return handleTurn(request, env, store);
     }
 
     const sessionMatch = url.pathname.match(/^\/v1\/session\/([^/]+)$/);
     if (sessionMatch && request.method === "GET") {
-      return handleGetSession(decodeURIComponent(sessionMatch[1]));
+      return handleGetSession(store, decodeURIComponent(sessionMatch[1]));
     }
 
     return json({ error: "not_found" }, { status: 404 });
