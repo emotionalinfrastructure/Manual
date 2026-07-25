@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
 import { test, beforeEach } from "node:test";
-import worker, { __resetState } from "./index.js";
+import { createWorker } from "./index.js";
+import { createSessionStore } from "./sessions.js";
 
 const env = {};
 const BASE = "http://localhost";
 
-// Every test starts from a known-empty session store so test order can never
-// determine whether the suite passes.
-beforeEach(() => __resetState());
+// Every test runs against its own worker instance, each with its own session
+// store, so test order can never determine whether the suite passes. Isolation
+// is structural: there is no shared state to reset.
+let worker;
+beforeEach(() => {
+  worker = createWorker();
+});
 
 function turnRequest(session_id, user_message) {
   return new Request(`${BASE}/v1/turn`, {
@@ -353,4 +358,48 @@ test("repeated first-person disclosures still trip the repeated-crisis escalatio
   assert.equal(body.crisis_turn_count, 2);
   assert.equal(body.safety.action, "escalate");
   assert.match(body.suggested_system_directive, /ongoing/);
+});
+
+// --- Session-store isolation -------------------------------------------------
+
+test("separate worker instances do not share session state", async () => {
+  const workerA = createWorker();
+  const workerB = createWorker();
+
+  await workerA.fetch(turnRequest("shared-id", "I want to kill myself"), env);
+
+  const inA = await workerA.fetch(new Request(`${BASE}/v1/session/shared-id`), env);
+  assert.equal(inA.status, 200);
+  assert.equal((await inA.json()).crisis_turn_count, 1);
+
+  // Same session id, different instance: no state leaks across the boundary.
+  const inB = await workerB.fetch(new Request(`${BASE}/v1/session/shared-id`), env);
+  assert.equal(inB.status, 404);
+});
+
+test("an injected session store is used in place of the default", async () => {
+  const store = createSessionStore();
+  const custom = createWorker({ sessions: store });
+
+  await custom.fetch(turnRequest("injected", "hello there"), env);
+
+  // The caller-supplied store observes the turn, proving the seam is real.
+  assert.equal(store.get("injected").turnCount, 1);
+  assert.equal(store.get("unseen"), undefined);
+});
+
+test("a first-person disclosure increments the crisis counter exactly once", async () => {
+  // Regression guard for the #5/#7 merge hazard: the increment lives in
+  // exactly one place (recordTurn's isCrisis), driven by the narrowed
+  // first-person condition. A resolution that reinstates a second increment
+  // — or widens isCrisis back to the crisis_language flag — shows up here as
+  // a doubled count or as third-party turns being counted.
+  const { body: one } = await turn("once", "I want to kill myself");
+  assert.equal(one.crisis_turn_count, 1);
+
+  const { body: two } = await turn("once", "there is no reason to live");
+  assert.equal(two.crisis_turn_count, 2);
+
+  const { body: notCounted } = await turn("once", "my friend is suicidal too");
+  assert.equal(notCounted.crisis_turn_count, 2); // third-party adds nothing
 });
