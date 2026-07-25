@@ -25,11 +25,12 @@ ANTHROPIC_MODEL = "claude-sonnet-5"
 # binding is absent the Worker falls back to an in-memory Map (single-isolate
 # only) — handy for the demo, not for production.
 #
-# Before your first deploy, create the namespace and paste its id below:
+# These namespaces already exist in the Cloudflare account
+# (`emotional-infra-sessions` and its preview). To recreate from scratch:
 #     npx wrangler kv namespace create SESSIONS
 #     npx wrangler kv namespace create SESSIONS --preview   # for `wrangler dev`
-# then replace the placeholder ids with the ones it prints.
+# then paste the ids it prints here.
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_KV_PREVIEW_NAMESPACE_ID"
+id = "94036ebdf93045f7ab005a68c2046906"
+preview_id = "178546a23fbc43a69088fc5ba17b93c8"
