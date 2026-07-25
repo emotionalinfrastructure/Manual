@@ -79,7 +79,10 @@ async function handleTurn(request, env) {
   session.turnCount += 1;
   session.sentimentHistory.push(analysis.sentiment_score);
   if (session.sentimentHistory.length > MAX_HISTORY) session.sentimentHistory.shift();
-  if (analysis.flags.includes("crisis_language")) session.crisisTurnCount += 1;
+  // Only first-person disclosures count toward the repeated-crisis boundary:
+  // that rule exists to catch a user's own escalating risk, and asking about
+  // a friend twice, or discussing the topic twice, is not that.
+  if (analysis.crisis_context === "first_person") session.crisisTurnCount += 1;
   session.messages.push({ role: "user", content: user_message });
   session.messages.push({ role: "assistant", content: reply.text });
   if (session.messages.length > MAX_MESSAGES) session.messages = session.messages.slice(-MAX_MESSAGES);

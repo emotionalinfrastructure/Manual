@@ -317,3 +317,40 @@ test("error responses use a consistent { error } schema", async () => {
   assert.equal(Object.keys(body).length, 1);
   assert.equal(typeof body.error, "string");
 });
+
+// --- Crisis context through the HTTP surface --------------------------------
+
+test("third-party concern escalates without counting toward the user's crisis total", async () => {
+  const { body } = await turn("ctx1", "my friend is suicidal and I don't know how to help");
+  assert.equal(body.safety.action, "escalate");
+  assert.equal(body.safety.severity, "medium");
+  // The repeated-crisis boundary tracks the user's own risk, not concern for
+  // someone else, so this must not increment.
+  assert.equal(body.crisis_turn_count, 0);
+});
+
+test("topic mention is allowed and does not count toward the crisis total", async () => {
+  const { body } = await turn("ctx2", "Suicide rates among teenagers declined last year");
+  assert.equal(body.safety.action, "allow");
+  assert.equal(body.emotional_state.primary_emotion, "neutral");
+  assert.equal(body.crisis_turn_count, 0);
+});
+
+test("repeated third-party turns never trip the repeated-crisis escalation", async () => {
+  // Three turns of asking about a friend used to accumulate crisis turns and
+  // eventually escalate the user as though they were personally at risk.
+  await turn("ctx3", "my friend is suicidal");
+  await turn("ctx3", "she wants to kill herself and I'm scared for her");
+  const { body } = await turn("ctx3", "what should I say to her?");
+  assert.equal(body.crisis_turn_count, 0);
+  assert.equal(body.safety.action, "allow"); // benign follow-up stays benign
+});
+
+test("repeated first-person disclosures still trip the repeated-crisis escalation", async () => {
+  await turn("ctx4", "I want to kill myself");
+  await turn("ctx4", "there is no reason to live");
+  const { body } = await turn("ctx4", "anyway, nice weather today");
+  assert.equal(body.crisis_turn_count, 2);
+  assert.equal(body.safety.action, "escalate");
+  assert.match(body.suggested_system_directive, /ongoing/);
+});
