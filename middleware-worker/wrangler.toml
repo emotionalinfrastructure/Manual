@@ -28,5 +28,18 @@ class_name = "SessionObject"
 tag = "v1"
 new_sqlite_classes = ["SessionObject"]
 
+# KV fallback, used when no Durable Object binding is present. Durable Objects
+# require a paid Workers plan; on the free plan, delete or comment out the
+# [[durable_objects.bindings]] and [[migrations]] blocks above and the Worker
+# picks this up automatically — sessions still survive isolate recycling.
+#
+# Weaker than the Durable Object path: KV's read-modify-write is not atomic, so
+# simultaneous turns on one session can lose a crisis increment. Still far
+# better than in-memory, which loses the whole session on every recycle.
+[[kv_namespaces]]
+binding = "SESSIONS_KV"
+id = "94036ebdf93045f7ab005a68c2046906"
+preview_id = "178546a23fbc43a69088fc5ba17b93c8"
+
 [vars]
 ANTHROPIC_MODEL = "claude-sonnet-5"

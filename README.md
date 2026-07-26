@@ -99,26 +99,41 @@ Per-session state — turn count, sentiment trend, crisis count, and the message
 history used as LLM context — is kept behind a store interface with two
 implementations, chosen per request:
 
-| condition | store | lifetime |
-|---|---|---|
-| a store is injected explicitly | that one | caller's |
-| the `SESSIONS` binding exists | Durable Object | the conversation's |
-| neither | in-memory `Map` | one Worker isolate |
+Four tiers, strongest durability first. Each turn response reports which one
+served it, as `session_store`:
 
-So the demo runs with no bindings configured, and a deployment that declares
-the binding gets state that survives isolate recycling — without which a long
-conversation silently loses its history, including the crisis count that gates
-repeated-crisis escalation.
+| condition | `session_store` | lifetime | concurrent-safe |
+|---|---|---|---|
+| a store is injected explicitly | `injected` | caller's | caller's |
+| `SESSIONS` (Durable Object) bound | `durable_object` | the conversation's | yes |
+| `SESSIONS_KV` bound | `kv` | the conversation's | no — see below |
+| neither | `memory` | one Worker isolate | n/a |
 
-**Durable Objects rather than KV, deliberately.** KV is eventually consistent,
-and this value includes `crisisTurnCount`. Two turns landing close together
-against stale reads would drop an increment — a safety regression nothing would
-surface. A Durable Object serialises access per session id, and each turn's
-read-modify-write happens inside the object under `blockConcurrencyWhile`, so
-increments cannot be lost. (One honest limit: the *policy decision* is made
-from a read taken before the model call, so two genuinely simultaneous turns in
-one conversation can each decide against the same prior state. The recorded
-counts stay correct; only the decision input is momentarily stale.)
+So the demo runs with no bindings configured, and a real deployment gets state
+that survives isolate recycling — without which a long conversation silently
+loses its history, including the crisis count that gates repeated-crisis
+escalation.
+
+**Durable Objects are preferred, deliberately.** KV is eventually consistent
+and its read-modify-write is not atomic. Two turns landing close together drop
+an increment — and because a *lower* `crisisTurnCount` means *less* escalation,
+nothing downstream would surface it. A Durable Object serialises access per
+session id and applies each turn under `blockConcurrencyWhile`, so increments
+cannot be lost. Both properties are pinned by test: the Durable Object suite
+asserts five concurrent turns yield five, and the KV suite characterises the
+same shape losing updates.
+
+**KV exists because Durable Objects require a paid Workers plan.** On the free
+plan, remove the `[[durable_objects.bindings]]` and `[[migrations]]` blocks
+from `wrangler.toml` and the Worker picks up KV automatically. That trades a
+narrow race for surviving recycling at all — strictly better than losing every
+session, strictly worse than serialised access. Check `session_store` in any
+response to confirm which tier you are actually on.
+
+One limit applies to every tier: the *policy decision* is made from a read
+taken before the model call, so two genuinely simultaneous turns in one
+conversation can each decide against the same prior state. The recorded counts
+stay correct; only the decision input is momentarily stale.
 
 This is a demo-grade rule engine, not a clinical risk model — the crisis
 phrase list is narrow and literal by design. A production deployment should

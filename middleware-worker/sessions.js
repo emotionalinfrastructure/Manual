@@ -45,6 +45,53 @@ export function createSessionStore() {
   };
 }
 
+// Namespacing the key leaves room for other record types in the same KV
+// namespace later without collisions.
+const KV_KEY_PREFIX = "session:";
+
+// Expire idle sessions so a shared namespace doesn't grow without bound.
+// 30 days; every write refreshes the window.
+const KV_TTL_SECONDS = 60 * 60 * 24 * 30;
+
+/**
+ * KV-backed store: a middle tier for deployments without Durable Objects,
+ * which require a paid Workers plan. State survives isolate recycling, which
+ * in-memory does not.
+ *
+ * Weaker than the Durable Object path, and deliberately so rather than by
+ * oversight: KV is eventually consistent and this read-modify-write is not
+ * atomic, so two turns landing on one session close together can lose an
+ * increment (last write wins). That matters because the value includes
+ * crisisTurnCount, and a lost increment means *less* escalation.
+ *
+ * The ordering is therefore: Durable Object where available, KV where not,
+ * in-memory only as a last resort. KV trades a narrow race for surviving
+ * isolate recycling at all — strictly better than losing every session, and
+ * strictly worse than serialised access.
+ *
+ * @param {KVNamespace} kv
+ */
+export function createKvSessionStore(kv) {
+  async function read(sessionId) {
+    return (await kv.get(KV_KEY_PREFIX + sessionId, "json")) ?? undefined;
+  }
+
+  return {
+    async getOrCreate(sessionId) {
+      return (await read(sessionId)) ?? newSession();
+    },
+    get: read,
+    async applyTurn(sessionId, delta) {
+      const session = (await read(sessionId)) ?? newSession();
+      recordTurn(session, delta);
+      await kv.put(KV_KEY_PREFIX + sessionId, JSON.stringify(session), {
+        expirationTtl: KV_TTL_SECONDS,
+      });
+      return session;
+    },
+  };
+}
+
 /**
  * Durable Object-backed store: session state survives isolate recycling, so a
  * conversation keeps its history and crisis count across the lifetime of the

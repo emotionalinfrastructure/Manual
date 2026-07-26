@@ -1,7 +1,11 @@
 import { analyzeMessage } from "./lexicon.js";
 import { decidePolicy, summarizeTrend } from "./policy.js";
 import { generateReply } from "./llm.js";
-import { createSessionStore, createDurableSessionStore } from "./sessions.js";
+import {
+  createSessionStore,
+  createDurableSessionStore,
+  createKvSessionStore,
+} from "./sessions.js";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -26,19 +30,24 @@ function authorized(request, env) {
  * Build a worker instance backed by a session store. The default export is one
  * such instance — what Cloudflare deploys.
  *
- * Store selection, in order:
+ * Store selection, strongest durability first:
  *   1. an explicitly injected store (tests, and any caller wiring its own);
- *   2. the SESSIONS Durable Object binding, when the deployment has one —
- *      state then survives isolate recycling;
- *   3. an in-memory store, so the demo runs with no bindings configured at
- *      all. That state lives only as long as the isolate.
+ *   2. the SESSIONS Durable Object binding — survives isolate recycling, and
+ *      serialises access so a crisis increment cannot be lost;
+ *   3. the SESSIONS_KV binding — also survives recycling, but its
+ *      read-modify-write is not atomic, so simultaneous turns on one session
+ *      can lose an increment. The middle tier for deployments without Durable
+ *      Objects, which need a paid Workers plan;
+ *   4. an in-memory store, so the demo runs with no bindings at all. That
+ *      state lives only as long as the isolate.
  *
- * The binding is resolved per request because `env` does not exist at module
+ * Bindings are resolved per request because `env` does not exist at module
  * construction time.
  */
 export function createWorker({ sessions: injectedSessions } = {}) {
   const fallbackStore = injectedSessions ?? createSessionStore();
   let durableStore;
+  let kvStore;
 
   function storeFor(env) {
     if (injectedSessions) return injectedSessions;
@@ -46,7 +55,21 @@ export function createWorker({ sessions: injectedSessions } = {}) {
       durableStore ??= createDurableSessionStore(env.SESSIONS);
       return durableStore;
     }
+    if (env && env.SESSIONS_KV) {
+      kvStore ??= createKvSessionStore(env.SESSIONS_KV);
+      return kvStore;
+    }
     return fallbackStore;
+  }
+
+  // Which tier is actually serving this request. Reported so an operator can
+  // tell durable state from state that silently disappears on recycle —
+  // "sessions look fine locally" is exactly how that goes unnoticed.
+  function backendFor(env) {
+    if (injectedSessions) return "injected";
+    if (env && env.SESSIONS) return "durable_object";
+    if (env && env.SESSIONS_KV) return "kv";
+    return "memory";
   }
 
   async function handleTurn(request, env) {
@@ -120,6 +143,7 @@ export function createWorker({ sessions: injectedSessions } = {}) {
       suggested_system_directive: policy.system_directive,
       session_trend: summarizeTrend(updated.sentimentHistory),
       crisis_turn_count: updated.crisisTurnCount,
+      session_store: backendFor(env),
       assistant_reply: reply.text,
       llm_backend: reply.backend,
       ...(reply.note ? { llm_note: reply.note } : {}),
