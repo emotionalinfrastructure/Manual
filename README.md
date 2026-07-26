@@ -27,26 +27,66 @@ locally.
   "session_id": "demo-123",
   "turn": 1,
   "emotional_state": { "sentiment_score": -0.8, "primary_emotion": "sadness", "intensity": 0.6 },
-  "safety": { "flags": ["crisis_language"], "action": "escalate", "severity": "high" },
+  "safety": {
+    "flags": ["crisis_language"],
+    "action": "escalate",
+    "severity": "high",
+    "crisis_context": "first_person"
+  },
   "suggested_system_directive": "The user's message contains language associated with self-harm...",
   "session_trend": "declining",
+  "crisis_turn_count": 1,
   "assistant_reply": "I want to make sure you're safe first...",
   "llm_backend": "anthropic"
 }
 ```
 
-- **`middleware-worker/lexicon.js`** — rule-based emotion/sentiment scoring and
-  crisis/abuse/PII detection. Deterministic, no external ML dependency.
+### Crisis language is answered proportionately
+
+Detection is deliberately broad — a missed disclosure costs far more than an
+unnecessary offer of support — so anything in the crisis vocabulary raises
+`crisis_language`. What varies is the response, driven by `crisis_context`:
+*who* the language refers to.
+
+| `crisis_context` | example | action | severity |
+|---|---|---|---|
+| `first_person` | "I want to kill myself" | `escalate` | high |
+| `third_party` | "my friend is suicidal" | `escalate` | medium |
+| `topic_mention` | "suicide rates declined last year" | `allow` | low |
+
+All three still surface support where someone may be at risk; only a pure
+topic mention declines to treat the user as in crisis, and its directive
+explicitly tells the model *not* to open with crisis resources. `null` when
+no crisis vocabulary is present.
+
+`crisis_turn_count` counts only first-person disclosures — the repeated-crisis
+boundary exists to catch a user's own escalating risk, so asking about a
+friend across several turns never accumulates toward it.
+
+Two limits worth knowing: quoted speech (`she texted me "I want to kill
+myself"`) is read as a first-person disclosure, left deliberately conservative
+because substring matching cannot reliably separate quotation from disclosure;
+and third-person detection covers common phrasings, not all of them.
+
+- **`middleware-worker/lexicon.js`** — rule-based emotion/sentiment scoring,
+  crisis/abuse/PII detection, and crisis-context classification. Deterministic,
+  no external ML dependency.
 - **`middleware-worker/policy.js`** — turns an analysis into an `allow` /
   `soften` / `escalate` decision and the directive text to inject ahead of the
-  LLM's system prompt. Also escalates a session that has raised crisis
-  language more than once, even if a single message wouldn't trip it alone.
+  LLM's system prompt. Also escalates a session that has raised first-person
+  crisis language more than once, even if a single message wouldn't trip it alone.
+- **`middleware-worker/sessions.js`** — per-session state (turn count, sentiment
+  history, crisis count, message history) behind a store the worker is
+  constructed with, so a durable backing can be swapped in without touching
+  request handling.
 - **`middleware-worker/llm.js`** — actually generates the reply: builds the
   system prompt (base persona + injected directive) and calls the Anthropic
   Messages API with the session's conversation history. If no
   `ANTHROPIC_API_KEY` is configured, it falls back to a deterministic,
   action-aware simulated reply (still distinct per `allow`/`soften`/`escalate`)
-  so the full pipeline runs with zero external dependencies.
+  so the full pipeline runs with zero external dependencies. `llm_backend`
+  reports where the reply text actually came from: a call that succeeds but
+  returns no usable text reports `"simulated"`, not `"anthropic"`.
 - **`middleware-worker/index.js`** — the Worker's HTTP surface (`/v1/turn`,
   `/v1/session/:id`, CORS, optional `API_KEY` bearer auth) plus in-memory
   per-session state (turn count, sentiment trend, crisis count, and the
