@@ -54,9 +54,16 @@ const KV_KEY_PREFIX = "session:";
 const KV_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 /**
- * KV-backed store: a middle tier for deployments without Durable Objects,
- * which require a paid Workers plan. State survives isolate recycling, which
+ * KV-backed store: an optional middle tier for deployments that cannot or do
+ * not want to use Durable Objects. State survives isolate recycling, which
  * in-memory does not.
+ *
+ * Not the default, and not the free-plan path — Durable Objects are available
+ * on the Workers Free plan with the SQLite storage backend, which is what this
+ * project's wrangler.toml declares. Prefer the Durable Object unless you have
+ * a specific reason not to; on the free plan KV is also the tighter budget
+ * (1,000 writes/day, i.e. ~1,000 turns, against 100,000 Durable Object
+ * requests/day).
  *
  * Weaker than the Durable Object path, and deliberately so rather than by
  * oversight: KV is eventually consistent and this read-modify-write is not

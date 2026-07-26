@@ -123,12 +123,19 @@ cannot be lost. Both properties are pinned by test: the Durable Object suite
 asserts five concurrent turns yield five, and the KV suite characterises the
 same shape losing updates.
 
-**KV exists because Durable Objects require a paid Workers plan.** On the free
-plan, remove the `[[durable_objects.bindings]]` and `[[migrations]]` blocks
-from `wrangler.toml` and the Worker picks up KV automatically. That trades a
-narrow race for surviving recycling at all — strictly better than losing every
-session, strictly worse than serialised access. Check `session_store` in any
-response to confirm which tier you are actually on.
+**The Durable Object works on the Workers Free plan.** Free accounts can create
+SQLite-backed Durable Objects, and `wrangler.toml` declares exactly that
+(`new_sqlite_classes`). Nothing needs removing to deploy on a free account —
+the default configuration is also the recommended one.
+
+**KV is an optional tier**, for deployments that cannot use Durable Objects at
+all. It is not the free-plan path, and on the free plan it is also the tighter
+budget: 1,000 KV writes/day — roughly 1,000 conversation turns — against
+100,000 Durable Object requests/day. Prefer the Durable Object unless you have
+a specific reason not to. Either way it beats in-memory, which loses the whole
+session on every recycle.
+
+Check `session_store` in any response to confirm which tier you are actually on.
 
 One limit applies to every tier: the *policy decision* is made from a read
 taken before the model call, so two genuinely simultaneous turns in one

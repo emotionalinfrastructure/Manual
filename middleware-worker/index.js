@@ -36,8 +36,9 @@ function authorized(request, env) {
  *      serialises access so a crisis increment cannot be lost;
  *   3. the SESSIONS_KV binding — also survives recycling, but its
  *      read-modify-write is not atomic, so simultaneous turns on one session
- *      can lose an increment. The middle tier for deployments without Durable
- *      Objects, which need a paid Workers plan;
+ *      can lose an increment. An optional tier for deployments that cannot use
+ *      Durable Objects; not the default and not the free-plan path, since
+ *      Durable Objects are available on the free plan with SQLite storage;
  *   4. an in-memory store, so the demo runs with no bindings at all. That
  *      state lives only as long as the isolate.
  *
