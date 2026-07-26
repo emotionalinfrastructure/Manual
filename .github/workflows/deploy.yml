@@ -1,0 +1,53 @@
+name: deploy
+
+# Deploys the Worker (incl. the SessionObject Durable Object migration) to
+# Cloudflare on every push to main, after the test suite passes. Dormant until
+# the CLOUDFLARE_API_TOKEN repo secret is set: without it the deploy step is
+# skipped (with a warning) instead of failing, so it never blocks merges.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # allow manual "Run workflow" / API-triggered deploys
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: middleware-worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: middleware-worker/package-lock.json
+
+      - name: Install dependencies (from lockfile)
+        run: npm ci
+
+      # Never deploy code that doesn't pass its own tests + coverage floor.
+      - name: Run tests with coverage thresholds
+        run: npm run test:coverage
+
+      - name: Check for Cloudflare credentials
+        id: creds
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::CLOUDFLARE_API_TOKEN secret is not set — skipping deploy. Add it in repo Settings → Secrets and variables → Actions to enable automatic deploys."
+          fi
+
+      - name: Deploy to Cloudflare Workers
+        if: steps.creds.outputs.ready == 'true'
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Optional: only needed if the token can access more than one account.
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
