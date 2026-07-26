@@ -99,16 +99,26 @@ Per-session state — turn count, sentiment trend, crisis count, and the message
 history used as LLM context — is kept behind a store interface with two
 implementations, chosen per request:
 
-| condition | store | lifetime |
+Each turn response reports which store served it, as `session_store`:
+
+| condition | `session_store` | lifetime |
 |---|---|---|
-| a store is injected explicitly | that one | caller's |
-| the `SESSIONS` binding exists | Durable Object | the conversation's |
-| neither | in-memory `Map` | one Worker isolate |
+| a store is injected explicitly | `injected` | caller's |
+| the `SESSIONS` binding exists | `durable_object` | the conversation's |
+| neither | `memory` | one Worker isolate |
 
 So the demo runs with no bindings configured, and a deployment that declares
 the binding gets state that survives isolate recycling — without which a long
 conversation silently loses its history, including the crisis count that gates
-repeated-crisis escalation.
+repeated-crisis escalation. Check `session_store` in any response to confirm
+which one you are actually on; locally it is always `memory`, which is exactly
+why the difference is easy to miss.
+
+**The Durable Object works on the Workers Free plan.** Free accounts can create
+SQLite-backed Durable Objects, and `wrangler.toml` declares exactly that
+(`new_sqlite_classes`), so the committed configuration deploys as-is with no
+changes. Free-plan limits are 100,000 Durable Object requests/day (a turn costs
+about two).
 
 **Durable Objects rather than KV, deliberately.** KV is eventually consistent,
 and this value includes `crisisTurnCount`. Two turns landing close together
