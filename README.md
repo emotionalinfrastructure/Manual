@@ -117,32 +117,47 @@ is also configurable (defaults to `claude-sonnet-5`).
 `frontend/` as static assets from the same origin — one deploy, one URL, the
 whole demo.
 
-**Option A — CLI, from a machine with Cloudflare access:**
+The `SESSIONS` KV namespaces already exist and their ids are committed in
+`wrangler.toml`, so no namespace setup is needed to deploy. (To recreate them
+from scratch: `npx wrangler kv namespace create SESSIONS` and
+`... SESSIONS --preview`, then paste the ids into the `[[kv_namespaces]]`
+block.)
+
+**Option A — GitHub Actions, deploy on merge (recommended):**
+`.github/workflows/deploy.yml` runs the tests and then `wrangler deploy` on
+every push to `main`. It's dormant until you add one repository secret, so it
+never blocks merges on its own:
+
+1. Create a Cloudflare API token: dashboard → My Profile → API Tokens →
+   Create Token → **"Edit Cloudflare Workers"** template (grants Workers
+   Scripts:Edit and Workers KV Storage:Edit).
+2. Add it under the repo's **Settings → Secrets and variables → Actions** as
+   `CLOUDFLARE_API_TOKEN`. If the token can access more than one account, also
+   add `CLOUDFLARE_ACCOUNT_ID`.
+3. Push/merge to `main`. The workflow deploys automatically. Set the optional
+   runtime secrets once from a machine with the token:
+   `npx wrangler secret put ANTHROPIC_API_KEY` (unset = simulated replies) and
+   `npx wrangler secret put API_KEY` (unset = open demo mode).
+
+**Option B — CLI, from a machine with Cloudflare access:**
 
 ```bash
 cd middleware-worker
-
-# One-time: create the KV namespace that holds session state, then paste the
-# ids it prints into the [[kv_namespaces]] block in wrangler.toml.
-npx wrangler kv namespace create SESSIONS
-npx wrangler kv namespace create SESSIONS --preview   # for `wrangler dev`
-
+npx wrangler login          # or export CLOUDFLARE_API_TOKEN=...
 npx wrangler deploy
 npx wrangler secret put API_KEY             # optional; unset = demo mode, no auth required
 npx wrangler secret put ANTHROPIC_API_KEY   # optional; unset = simulated replies
 ```
 
-Session state persists in that KV namespace. If you skip the namespace and
-deploy without the binding, the Worker still runs but falls back to
-per-isolate in-memory state (`session_store: "memory"`), which won't survive
-across isolates or deploys.
+**Option C — Cloudflare's own Git integration ("Workers Builds"):** in the
+Cloudflare dashboard, Workers & Pages → Create → Connect to Git → pick this
+repo, root directory `middleware-worker`. Cloudflare detects `wrangler.toml`
+and builds/deploys on every push to `main`. (If you use this *and* Option A,
+both deploy the same code — harmless, just redundant; pick one.)
 
-**Option B — Cloudflare's Git integration ("Workers Builds"), no CLI or
-local credentials needed:** in the Cloudflare dashboard, Workers & Pages →
-Create → Connect to Git → pick this repo, set the root directory to
-`middleware-worker`. Cloudflare detects `wrangler.toml` and builds/deploys
-automatically on every push to `main`. Add `ANTHROPIC_API_KEY` (and
-`API_KEY`, if you want auth) as secrets in that Worker's dashboard settings.
+Session state persists in the bound KV namespace. Deploying without the
+binding still runs, but falls back to per-isolate in-memory state
+(`session_store: "memory"`), which won't survive across isolates or deploys.
 
-Either way, the resulting `*.workers.dev` URL is the whole live demo —
+Any of these yields a `*.workers.dev` URL that is the whole live demo —
 nothing else to host or wire up.
