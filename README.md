@@ -87,16 +87,43 @@ and third-person detection covers common phrasings, not all of them.
   so the full pipeline runs with zero external dependencies. `llm_backend`
   reports where the reply text actually came from: a call that succeeds but
   returns no usable text reports `"simulated"`, not `"anthropic"`.
+- **`middleware-worker/session-object.js`** — the `SessionObject` Durable
+  Object: one instance per conversation, holding its state and applying each
+  completed turn atomically.
 - **`middleware-worker/index.js`** — the Worker's HTTP surface (`/v1/turn`,
-  `/v1/session/:id`, CORS, optional `API_KEY` bearer auth) plus in-memory
-  per-session state (turn count, sentiment trend, crisis count, and the
-  message history used as LLM context).
+  `/v1/session/:id`, CORS, optional `API_KEY` bearer auth).
+
+### Session storage
+
+Per-session state — turn count, sentiment trend, crisis count, and the message
+history used as LLM context — is kept behind a store interface with two
+implementations, chosen per request:
+
+| condition | store | lifetime |
+|---|---|---|
+| a store is injected explicitly | that one | caller's |
+| the `SESSIONS` binding exists | Durable Object | the conversation's |
+| neither | in-memory `Map` | one Worker isolate |
+
+So the demo runs with no bindings configured, and a deployment that declares
+the binding gets state that survives isolate recycling — without which a long
+conversation silently loses its history, including the crisis count that gates
+repeated-crisis escalation.
+
+**Durable Objects rather than KV, deliberately.** KV is eventually consistent,
+and this value includes `crisisTurnCount`. Two turns landing close together
+against stale reads would drop an increment — a safety regression nothing would
+surface. A Durable Object serialises access per session id, and each turn's
+read-modify-write happens inside the object under `blockConcurrencyWhile`, so
+increments cannot be lost. (One honest limit: the *policy decision* is made
+from a read taken before the model call, so two genuinely simultaneous turns in
+one conversation can each decide against the same prior state. The recorded
+counts stay correct; only the decision input is momentarily stale.)
 
 This is a demo-grade rule engine, not a clinical risk model — the crisis
 phrase list is narrow and literal by design. A production deployment should
-route flagged messages to a reviewed detection service and back session state
-with a Durable Object or KV instead of the in-memory `Map` used here (which
-only persists for the lifetime of a single Worker isolate).
+route flagged messages to a reviewed detection service rather than relying on
+a keyword list.
 
 ## Run the demo
 

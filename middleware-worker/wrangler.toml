@@ -16,5 +16,17 @@ directory = "../frontend"
 # (still action-aware) instead of calling a real model.
 # Set with: wrangler secret put ANTHROPIC_API_KEY
 
+# Durable Object holding per-session state, so a conversation's history and
+# crisis count survive isolate recycling. Without this binding the Worker falls
+# back to in-memory state, which is fine for a local demo but means sessions
+# reset whenever the isolate is replaced.
+[[durable_objects.bindings]]
+name = "SESSIONS"
+class_name = "SessionObject"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SessionObject"]
+
 [vars]
 ANTHROPIC_MODEL = "claude-sonnet-5"

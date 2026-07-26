@@ -1,7 +1,7 @@
 import { analyzeMessage } from "./lexicon.js";
 import { decidePolicy, summarizeTrend } from "./policy.js";
 import { generateReply } from "./llm.js";
-import { createSessionStore, recordTurn } from "./sessions.js";
+import { createSessionStore, createDurableSessionStore } from "./sessions.js";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -23,16 +23,32 @@ function authorized(request, env) {
 }
 
 /**
- * Build a worker instance backed by its own session store. The default export
- * is one such instance — what Cloudflare deploys, with unchanged behaviour.
- * Tests construct their own instances, so session isolation is structural
- * rather than depending on shared state being reset between cases.
+ * Build a worker instance backed by a session store. The default export is one
+ * such instance — what Cloudflare deploys.
  *
- * Session state is in-memory per instance: it survives only for the life of a
- * Worker isolate. A production deployment would pass a store backed by a
- * Durable Object or KV (see README).
+ * Store selection, in order:
+ *   1. an explicitly injected store (tests, and any caller wiring its own);
+ *   2. the SESSIONS Durable Object binding, when the deployment has one —
+ *      state then survives isolate recycling;
+ *   3. an in-memory store, so the demo runs with no bindings configured at
+ *      all. That state lives only as long as the isolate.
+ *
+ * The binding is resolved per request because `env` does not exist at module
+ * construction time.
  */
-export function createWorker({ sessions = createSessionStore() } = {}) {
+export function createWorker({ sessions: injectedSessions } = {}) {
+  const fallbackStore = injectedSessions ?? createSessionStore();
+  let durableStore;
+
+  function storeFor(env) {
+    if (injectedSessions) return injectedSessions;
+    if (env && env.SESSIONS) {
+      durableStore ??= createDurableSessionStore(env.SESSIONS);
+      return durableStore;
+    }
+    return fallbackStore;
+  }
+
   async function handleTurn(request, env) {
     if (!authorized(request, env)) {
       return json({ error: "unauthorized" }, { status: 401 });
@@ -54,7 +70,8 @@ export function createWorker({ sessions = createSessionStore() } = {}) {
     }
 
     const analysis = analyzeMessage(user_message);
-    const session = sessions.getOrCreate(session_id);
+    const sessions = storeFor(env);
+    const session = await sessions.getOrCreate(session_id);
 
     const policy = decidePolicy(analysis, session);
 
@@ -67,7 +84,11 @@ export function createWorker({ sessions = createSessionStore() } = {}) {
       userMessage: user_message,
     });
 
-    recordTurn(session, {
+    // The store applies the delta and returns the result, rather than the
+    // handler mutating an object it happens to hold. On the durable path the
+    // apply happens inside the Durable Object, so two turns racing on one
+    // session cannot lose an increment.
+    const updated = await sessions.applyTurn(session_id, {
       sentimentScore: analysis.sentiment_score,
       // Only first-person disclosures count toward the repeated-crisis
       // boundary: that rule exists to catch a user's own escalating risk, and
@@ -80,7 +101,7 @@ export function createWorker({ sessions = createSessionStore() } = {}) {
 
     return json({
       session_id,
-      turn: session.turnCount,
+      turn: updated.turnCount,
       emotional_state: {
         sentiment_score: analysis.sentiment_score,
         primary_emotion: analysis.primary_emotion,
@@ -97,16 +118,16 @@ export function createWorker({ sessions = createSessionStore() } = {}) {
         crisis_context: analysis.crisis_context ?? null,
       },
       suggested_system_directive: policy.system_directive,
-      session_trend: summarizeTrend(session.sentimentHistory),
-      crisis_turn_count: session.crisisTurnCount,
+      session_trend: summarizeTrend(updated.sentimentHistory),
+      crisis_turn_count: updated.crisisTurnCount,
       assistant_reply: reply.text,
       llm_backend: reply.backend,
       ...(reply.note ? { llm_note: reply.note } : {}),
     });
   }
 
-  function handleGetSession(sessionId) {
-    const session = sessions.get(sessionId);
+  async function handleGetSession(sessionId, env) {
+    const session = await storeFor(env).get(sessionId);
     if (!session) {
       return json({ error: "session_not_found" }, { status: 404 });
     }
@@ -144,7 +165,7 @@ export function createWorker({ sessions = createSessionStore() } = {}) {
 
       const sessionMatch = url.pathname.match(/^\/v1\/session\/([^/]+)$/);
       if (sessionMatch && request.method === "GET") {
-        return handleGetSession(decodeURIComponent(sessionMatch[1]));
+        return handleGetSession(decodeURIComponent(sessionMatch[1]), env);
       }
 
       return json({ error: "not_found" }, { status: 404 });
@@ -153,3 +174,7 @@ export function createWorker({ sessions = createSessionStore() } = {}) {
 }
 
 export default createWorker();
+
+// Re-exported so wrangler can find the Durable Object class on the entrypoint
+// module, which is where it looks for `durable_objects.bindings[].class_name`.
+export { SessionObject } from "./session-object.js";
