@@ -32,22 +32,34 @@ jobs:
       - name: Run tests with coverage thresholds
         run: npm run test:coverage
 
-      - name: Check for Cloudflare credentials
+      # Resolve the token from either a repository SECRET (preferred) or a
+      # repository VARIABLE (the common "wrong tab" mistake), and say plainly
+      # which was found — booleans only, never the value. If neither exists,
+      # fail loudly with exact instructions rather than silently skipping, so a
+      # misconfigured secret can't masquerade as a successful no-op deploy.
+      - name: Resolve Cloudflare credentials
         id: creds
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TOKEN_SECRET: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TOKEN_VAR: ${{ vars.CLOUDFLARE_API_TOKEN }}
         run: |
-          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+          echo "CLOUDFLARE_API_TOKEN as repository SECRET:   $([ -n "$TOKEN_SECRET" ] && echo present || echo MISSING)"
+          echo "CLOUDFLARE_API_TOKEN as repository VARIABLE: $([ -n "$TOKEN_VAR" ] && echo present || echo missing)"
+          if [ -n "$TOKEN_SECRET" ] || [ -n "$TOKEN_VAR" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
+            if [ -z "$TOKEN_SECRET" ] && [ -n "$TOKEN_VAR" ]; then
+              echo "::warning::Token was found as a repository VARIABLE, not a SECRET. Variables are not masked in logs — move it to Settings → Secrets and variables → Actions → Secrets, then delete the variable."
+            fi
           else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::CLOUDFLARE_API_TOKEN secret is not set — skipping deploy. Add it in repo Settings → Secrets and variables → Actions to enable automatic deploys."
+            echo "::error::No CLOUDFLARE_API_TOKEN found. Add it under Settings → Secrets and variables → Actions → the 'Secrets' tab → 'New repository secret', named exactly CLOUDFLARE_API_TOKEN. It is currently neither a repository secret nor a repository variable, so it was saved somewhere the workflow cannot read (e.g. the Variables tab, an Environment, or not saved)."
+            exit 1
           fi
 
       - name: Deploy to Cloudflare Workers
         if: steps.creds.outputs.ready == 'true'
         run: npx wrangler deploy
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Prefer the secret; fall back to a variable of the same name.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || vars.CLOUDFLARE_API_TOKEN }}
           # Optional: only needed if the token can access more than one account.
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
