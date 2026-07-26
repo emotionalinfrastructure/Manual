@@ -7,6 +7,7 @@ name: deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch: {}   # allow manual "Run workflow" / API-triggered deploys
 
 jobs:
   deploy:
