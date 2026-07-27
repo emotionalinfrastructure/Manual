@@ -49,6 +49,16 @@ export function createWorker({ sessions: injectedSessions } = {}) {
     return fallbackStore;
   }
 
+  // Which store actually served this request. Reported so an operator can tell
+  // durable state from state that silently disappears when an isolate is
+  // recycled — "sessions look fine locally" is exactly how that goes unnoticed,
+  // because locally it always works.
+  function backendFor(env) {
+    if (injectedSessions) return "injected";
+    if (env && env.SESSIONS) return "durable_object";
+    return "memory";
+  }
+
   async function handleTurn(request, env) {
     if (!authorized(request, env)) {
       return json({ error: "unauthorized" }, { status: 401 });
@@ -120,6 +130,7 @@ export function createWorker({ sessions: injectedSessions } = {}) {
       suggested_system_directive: policy.system_directive,
       session_trend: summarizeTrend(updated.sentimentHistory),
       crisis_turn_count: updated.crisisTurnCount,
+      session_store: backendFor(env),
       assistant_reply: reply.text,
       llm_backend: reply.backend,
       ...(reply.note ? { llm_note: reply.note } : {}),

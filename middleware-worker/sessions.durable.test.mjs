@@ -233,3 +233,33 @@ test("an injected store takes precedence over the binding", async () => {
   assert.deepEqual(calls, ["inj"]);
   assert.deepEqual(ns.created, []); // the binding was never touched
 });
+
+// --- which store served the request -----------------------------------------
+
+test("session_store reports the durable tier when the binding is present", async () => {
+  const ns = fakeNamespace();
+  const worker = createWorker();
+  const res = await worker.fetch(turnRequest("rep1", "hello"), { SESSIONS: ns });
+  assert.equal((await res.json()).session_store, "durable_object");
+});
+
+test("session_store reports in-memory when no binding is present", async () => {
+  const worker = createWorker();
+  const res = await worker.fetch(turnRequest("rep2", "hello"), {});
+  assert.equal((await res.json()).session_store, "memory");
+});
+
+test("session_store reports an injected store, which wins over the binding", async () => {
+  const ns = fakeNamespace();
+  const injected = {
+    getOrCreate: () => ({ turnCount: 0, sentimentHistory: [], crisisTurnCount: 0, messages: [] }),
+    get: () => undefined,
+    applyTurn: () => ({ turnCount: 4, sentimentHistory: [], crisisTurnCount: 0, messages: [] }),
+  };
+  const worker = createWorker({ sessions: injected });
+  const body = await (await worker.fetch(turnRequest("rep3", "hello"), { SESSIONS: ns })).json();
+
+  assert.equal(body.session_store, "injected");
+  assert.equal(body.turn, 4);
+  assert.deepEqual(ns.created, []); // the binding was never touched
+});
