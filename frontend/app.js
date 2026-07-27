@@ -4,6 +4,32 @@ const log = document.getElementById("log");
 const apiBaseInput = document.getElementById("api-base");
 const sessionIdInput = document.getElementById("session-id");
 const sessionPanel = document.getElementById("session-panel");
+const sendButton = form.querySelector("button");
+
+// Remove the first-run empty state (with its example chips) once a real
+// conversation starts.
+function clearEmptyState() {
+  const empty = log.querySelector("[data-empty]");
+  if (empty) empty.remove();
+}
+
+// Clicking an example chip fills the composer and sends it.
+log.addEventListener("click", (event) => {
+  const chip = event.target.closest(".chip");
+  if (!chip) return;
+  input.value = chip.dataset.suggest || "";
+  form.requestSubmit();
+});
+
+// A transient "analyzing…" bubble shown while the turn is in flight.
+function showPending() {
+  const el = document.createElement("div");
+  el.className = "msg msg-assistant pending";
+  el.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+  return el;
+}
 
 const ACTION_LABEL = {
   allow: "allow",
@@ -111,9 +137,12 @@ form.addEventListener("submit", async (event) => {
   const apiBase = apiBaseInput.value.trim().replace(/\/$/, "");
   const sessionId = sessionIdInput.value.trim() || "demo-123";
 
+  clearEmptyState();
   appendMessage("user", message);
   input.value = "";
   input.disabled = true;
+  sendButton.disabled = true;
+  const pending = showPending();
 
   try {
     const res = await fetch(`${apiBase}/v1/turn`, {
@@ -124,6 +153,8 @@ form.addEventListener("submit", async (event) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ session_id: sessionId, user_message: message }),
     });
+
+    pending.remove();
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
@@ -136,12 +167,14 @@ form.addEventListener("submit", async (event) => {
     appendReply(result);
     updateSessionPanel(result);
   } catch (err) {
+    pending.remove();
     appendMessage(
       "error",
       `Could not reach the middleware at ${apiBase || "(same origin)"}. Is it running? (npm run dev in middleware-worker/)`
     );
   } finally {
     input.disabled = false;
+    sendButton.disabled = false;
     input.focus();
   }
 });
