@@ -3,58 +3,89 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#4f46e5">
   <title>Emotional Infrastructure Middleware</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header>
-    <h1>Emotional Infrastructure Middleware</h1>
-    <p>The compliance &amp; safety layer for AI conversations.</p>
+  <header class="hero">
+    <div class="hero-inner">
+      <div class="hero-mark" aria-hidden="true">🛡️</div>
+      <div class="hero-copy">
+        <h1>Emotional Infrastructure</h1>
+        <p>A compliance &amp; safety layer that sits between a chat UI and the model — scoring every turn for tone and risk, then steering the reply.</p>
+      </div>
+    </div>
   </header>
+
   <main>
-    <section class="panel">
-      <h2>Live demo</h2>
-      <p class="muted">
-        Every message you send is run through <code>POST /v1/turn</code>. The middleware
-        scores the emotional tone, checks for crisis/abuse language and PII, and returns a
-        moderation decision plus a system directive an upstream LLM call should be steered by.
-      </p>
+    <section class="panel chat-panel" aria-label="Live demo">
+      <div class="panel-head">
+        <div>
+          <h2>Live demo</h2>
+          <p class="muted">Each message runs through <code>POST /v1/turn</code>: emotion &amp; sentiment scoring, crisis / abuse / PII detection, and a moderation decision with the directive an upstream model gets steered by.</p>
+        </div>
+        <ul class="legend" aria-label="Decision types">
+          <li><span class="dot dot-allow"></span>allow</li>
+          <li><span class="dot dot-soften"></span>soften</li>
+          <li><span class="dot dot-escalate"></span>escalate</li>
+        </ul>
+      </div>
 
-      <label class="field">
-        API base URL <span class="muted">(blank = same origin as this page)</span>
-        <input id="api-base" type="text" value="" placeholder="e.g. https://your-worker.workers.dev" spellcheck="false">
-      </label>
-      <label class="field">
-        Session ID
-        <input id="session-id" type="text" value="demo-123" spellcheck="false">
-      </label>
-
-      <div id="log" class="log" aria-live="polite"></div>
+      <div id="log" class="log" aria-live="polite">
+        <div class="empty-state" data-empty>
+          <div class="empty-mark" aria-hidden="true">💬</div>
+          <p>Send a message to see how it's scored and steered.</p>
+          <div class="suggestions">
+            <button type="button" class="chip" data-suggest="I feel so sad and hopeless today">“I feel so sad and hopeless”</button>
+            <button type="button" class="chip" data-suggest="Thanks, that worked great!">“Thanks, that worked great!”</button>
+            <button type="button" class="chip" data-suggest="My friend said she wants to hurt herself">“My friend said she wants to hurt herself”</button>
+          </div>
+        </div>
+      </div>
 
       <form id="turn-form" class="composer">
-        <input id="user-message" type="text" placeholder="Type a message..." autocomplete="off" required>
-        <button type="submit">Send</button>
+        <input id="user-message" type="text" placeholder="Type a message…" autocomplete="off" required aria-label="Message">
+        <button type="submit" aria-label="Send message">
+          <span class="btn-label">Send</span>
+        </button>
       </form>
 
-      <div id="session-panel" class="session-panel hidden">
-        <h3>Session state</h3>
-        <dl>
-          <dt>Turns</dt><dd id="s-turns">0</dd>
-          <dt>Trend</dt><dd id="s-trend">-</dd>
-          <dt>Crisis turns</dt><dd id="s-crisis">0</dd>
-        </dl>
+      <div id="session-panel" class="session-panel hidden" aria-label="Session state">
+        <div class="stat"><span class="stat-label">Turns</span><span id="s-turns" class="stat-value">0</span></div>
+        <div class="stat"><span class="stat-label">Trend</span><span id="s-trend" class="stat-value">–</span></div>
+        <div class="stat"><span class="stat-label">Crisis turns</span><span id="s-crisis" class="stat-value">0</span></div>
       </div>
+
+      <details class="settings">
+        <summary>Connection settings</summary>
+        <label class="field">
+          <span>API base URL <span class="muted">(blank = same origin)</span></span>
+          <input id="api-base" type="text" value="" placeholder="e.g. https://your-worker.workers.dev" spellcheck="false">
+        </label>
+        <label class="field">
+          <span>Session ID</span>
+          <input id="session-id" type="text" value="demo-123" spellcheck="false">
+        </label>
+      </details>
     </section>
 
     <section class="panel">
       <h2>Quickstart</h2>
-      <pre><code>curl -X POST http://localhost:8787/v1/turn \
+      <pre><code>curl -X POST /v1/turn \
   -H "Content-Type: application/json" \
   -d '{"session_id": "demo-123", "user_message": "Hello"}'</code></pre>
-      <p class="muted">Run everything locally with <code>npm run dev</code> inside <code>middleware-worker/</code> (serves this page too, at <code>http://localhost:8787/</code>), or deploy with <code>npm run deploy</code> / Cloudflare's Git integration — see the top-level README.</p>
+      <p class="muted">Run locally with <code>npm run dev</code> inside <code>middleware-worker/</code> (serves this page too), or deploy with <code>npm run deploy</code> / the Git integration — see the README.</p>
     </section>
   </main>
+
+  <footer class="site-foot">
+    <span>Emotional Infrastructure Middleware</span>
+    <span class="muted">demo-grade rule engine — not a clinical risk model</span>
+  </footer>
+
   <script src="app.js"></script>
 </body>
 </html>
