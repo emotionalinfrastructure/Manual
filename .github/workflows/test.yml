@@ -17,7 +17,9 @@ jobs:
         with:
           node-version: 22
       # No install step: the worker has zero runtime dependencies and the
-      # suite uses only node:test. Coverage thresholds (lines 95 / branches
-      # 85 / functions 80) are enforced by the flags in test:coverage —
-      # dropping below them fails this job.
+      # suite (plus the coverage runner) uses only node:test / node:child_process.
+      # test:coverage runs run-coverage.mjs, which enforces PER-MODULE line/branch
+      # floors (Node's own flags are global-only) and exits non-zero if any
+      # module or the overall total drops below its floor — so a regression
+      # fails this job.
       - run: npm run test:coverage

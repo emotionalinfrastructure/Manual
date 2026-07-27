@@ -101,6 +101,47 @@ test("PII stacks with emotional and crisis flags", () => {
   assert.equal(a.pii.phones, 1);
 });
 
+// --- phone-number false positives (CHARACTERIZATION of a known defect) ---
+//
+// KNOWN DEFECT (documented, not fixed here): PHONE_RE = /\b(\+?\d[\d\s().-]{7,}\d)\b/g
+// matches any long run of digits/separators, so non-phone numeric identifiers
+// are misclassified as phone PII. These tests PIN the current (incorrect)
+// behavior so a future regex fix is a deliberate, reviewed change — see the PR
+// description's defect note. Do NOT "fix" these by editing the assertions; a
+// corrected regex should flip them to 0 in the same change that discloses it.
+
+test("DEFECT: an order number is misclassified as a phone (false positive)", () => {
+  const a = analyzeMessage("my order number is 100002345678");
+  assert.equal(a.pii.phones, 1); // should be 0 once the regex is narrowed
+  assert.ok(a.flags.includes("pii_detected"));
+});
+
+test("DEFECT: a bare date is misclassified as a phone (false positive)", () => {
+  const a = analyzeMessage("the date was 2026-07-22");
+  assert.equal(a.pii.phones, 1); // should be 0
+});
+
+test("DEFECT: a long numeric id is misclassified as a phone (false positive)", () => {
+  const a = analyzeMessage("user id 123456789012345");
+  assert.equal(a.pii.phones, 1); // should be 0
+});
+
+test("DEFECT: an ISBN-like value is misclassified as a phone (false positive)", () => {
+  const a = analyzeMessage("isbn 978-0-13-468599-1");
+  assert.equal(a.pii.phones, 1); // should be 0
+});
+
+test("a short formatted value below the digit threshold is NOT a phone (correct)", () => {
+  const a = analyzeMessage("extension 12-34");
+  assert.equal(a.pii.phones, 0);
+  assert.ok(!a.flags.includes("pii_detected"));
+});
+
+test("a timestamp broken by a 'T' separator is not one phone run (correct)", () => {
+  const a = analyzeMessage("event at 2026-07-22T12:00:00");
+  assert.equal(a.pii.phones, 0);
+});
+
 // --- characterization: current contextual-language behavior ---
 //
 // These tests DOCUMENT the present keyword/phrase behavior; they are not an
