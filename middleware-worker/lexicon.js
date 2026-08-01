@@ -87,8 +87,34 @@ export const ABUSE_PHRASES = [
   "shut up and die",
 ];
 
-const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+// Quantifiers are bounded rather than open-ended, using the RFC 5321 length
+// limits (64-octet local part, 255-octet domain) as the natural ceiling.
+//
+// An unbounded `+` in front of a required literal is quadratic on input that
+// never satisfies the literal: a long run of local-part characters with no
+// "@" makes the engine consume the run, fail, and rescan from the next start
+// position, for every position. A 1 MB message of ordinary letters took
+// roughly twenty minutes of fully blocked event loop. Bounding the run caps
+// the work per start position, which keeps the scan linear in input length.
+const EMAIL_RE = /[a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9.-]{1,255}\.[a-zA-Z]{2,24}/g;
 const PHONE_RE = /\b(\+?\d[\d\s().-]{7,}\d)\b/g;
+
+/**
+ * Collapse the formatting noise that separates two words, so phrase matching
+ * sees "kill myself" in "kill  myself", "kill-myself", and a phrase broken
+ * across a line.
+ *
+ * These are not evasion attempts — they are how people actually type — and a
+ * literal substring matcher missed all three while catching the identical
+ * sentence typed plainly.
+ *
+ * Deliberately leaves "." alone: collapsing sentence boundaries would let
+ * "...I had to kill. Myself, I would have waited" match "kill myself". The
+ * separators handled here cannot join two sentences the way a period can.
+ */
+export function normalizeForMatch(lowerText) {
+  return lowerText.replace(/[\s_-]+/g, " ").trim();
+}
 
 function tokenize(text) {
   return text.toLowerCase().match(/[a-z']+/g) || [];
@@ -135,6 +161,11 @@ export function classifyCrisisContext(lowerText, { firstPerson, thirdParty, topi
  */
 export function analyzeMessage(text) {
   const lowerText = (text || "").toLowerCase();
+  // Phrase and subject matching run against the normalised form; PII
+  // detection below deliberately stays on the raw text, because the
+  // separators normalisation collapses are exactly what phone numbers are
+  // written with.
+  const matchText = normalizeForMatch(lowerText);
   const tokens = tokenize(text || "");
 
   const emotionCounts = {};
@@ -142,16 +173,16 @@ export function analyzeMessage(text) {
     emotionCounts[emotion] = tokens.filter((t) => words.includes(t)).length;
   }
 
-  const firstPersonMatches = containsPhrase(lowerText, FIRST_PERSON_CRISIS_PHRASES);
-  const thirdPartyMatches = containsPhrase(lowerText, THIRD_PARTY_CRISIS_PHRASES);
-  const topicMatches = containsPhrase(lowerText, CRISIS_TOPIC_KEYWORDS);
+  const firstPersonMatches = containsPhrase(matchText, FIRST_PERSON_CRISIS_PHRASES);
+  const thirdPartyMatches = containsPhrase(matchText, THIRD_PARTY_CRISIS_PHRASES);
+  const topicMatches = containsPhrase(matchText, CRISIS_TOPIC_KEYWORDS);
   const crisisMatches = [...firstPersonMatches, ...thirdPartyMatches, ...topicMatches];
-  const crisisContext = classifyCrisisContext(lowerText, {
+  const crisisContext = classifyCrisisContext(matchText, {
     firstPerson: firstPersonMatches,
     thirdParty: thirdPartyMatches,
     topic: topicMatches,
   });
-  const abuseMatches = containsPhrase(lowerText, ABUSE_PHRASES);
+  const abuseMatches = containsPhrase(matchText, ABUSE_PHRASES);
 
   let positiveHits = 0;
   let negativeHits = 0;

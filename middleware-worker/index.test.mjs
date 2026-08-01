@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test, beforeEach } from "node:test";
-import { createWorker } from "./index.js";
+import { createWorker, MAX_USER_MESSAGE_CHARS, MAX_SESSION_ID_CHARS } from "./index.js";
 import { createSessionStore } from "./sessions.js";
 
 const env = {};
@@ -423,4 +423,63 @@ test("safety.crisis_context is exposed so callers can tell escalations apart", a
 test("safety.crisis_context is null when no crisis vocabulary is present", async () => {
   const { body } = await turn("cc4", "thanks, that was helpful");
   assert.equal(body.safety.crisis_context, null);
+});
+
+// --- Auth on the read path ---------------------------------------------------
+
+test("GET /v1/session/:id enforces the same API_KEY as the write path", async () => {
+  const securedEnv = { API_KEY: "secret" };
+
+  const seed = turnRequest("locked", "I want to kill myself");
+  seed.headers.set("authorization", "Bearer secret");
+  assert.equal((await worker.fetch(seed, securedEnv)).status, 200);
+
+  // The transcript carries the disclosure, so an unauthenticated read must
+  // not return it just because the id is guessable.
+  const anon = await worker.fetch(new Request(`${BASE}/v1/session/locked`), securedEnv);
+  assert.equal(anon.status, 401);
+  assert.equal((await anon.json()).error, "unauthorized");
+
+  const wrong = new Request(`${BASE}/v1/session/locked`);
+  wrong.headers.set("authorization", "Bearer nope");
+  assert.equal((await worker.fetch(wrong, securedEnv)).status, 401);
+
+  const authed = new Request(`${BASE}/v1/session/locked`);
+  authed.headers.set("authorization", "Bearer secret");
+  const ok = await worker.fetch(authed, securedEnv);
+  assert.equal(ok.status, 200);
+  assert.equal((await ok.json()).turn_count, 1);
+});
+
+test("with no API_KEY configured the read path stays open for the demo", async () => {
+  await turn("open", "hello");
+  const res = await worker.fetch(new Request(`${BASE}/v1/session/open`), env);
+  assert.equal(res.status, 200);
+});
+
+// --- Input size limits -------------------------------------------------------
+
+test("an oversized user_message is rejected rather than analyzed", async () => {
+  // Unbounded input is a CPU exhaustion vector: analysis cost grows with
+  // length and nothing can interrupt it mid-scan.
+  const res = await worker.fetch(
+    turnRequest("big", "a".repeat(MAX_USER_MESSAGE_CHARS + 1)),
+    env
+  );
+  assert.equal(res.status, 413);
+  assert.equal((await res.json()).error, "user_message too long");
+});
+
+test("a user_message exactly at the limit is still accepted", async () => {
+  const res = await worker.fetch(turnRequest("edge", "a".repeat(MAX_USER_MESSAGE_CHARS)), env);
+  assert.equal(res.status, 200);
+});
+
+test("an oversized session_id is rejected", async () => {
+  const res = await worker.fetch(
+    turnRequest("s".repeat(MAX_SESSION_ID_CHARS + 1), "hello"),
+    env
+  );
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).error, "session_id too long");
 });

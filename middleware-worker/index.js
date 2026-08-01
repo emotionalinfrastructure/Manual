@@ -16,10 +16,34 @@ function json(body, init = {}) {
   });
 }
 
+// Upper bounds on caller-controlled input. Without them a single request can
+// hand the analyzer an arbitrarily large string, and every pass over that
+// string is work the isolate cannot interrupt. 8 KB is far above any real
+// conversational turn while keeping the worst-case analysis cost negligible.
+export const MAX_USER_MESSAGE_CHARS = 8192;
+export const MAX_SESSION_ID_CHARS = 200;
+
+/**
+ * Compare two strings without leaking, through timing, how far they matched.
+ *
+ * `===` on strings short-circuits at the first differing byte, which turns a
+ * secret comparison into a per-character oracle. Workers have no
+ * timingSafeEqual, so this walks the full length of both strings and folds
+ * every difference into one accumulator.
+ */
+function timingSafeEqual(a, b) {
+  const len = Math.max(a.length, b.length);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < len; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 function authorized(request, env) {
   if (!env.API_KEY) return true; // no key configured -> demo mode, allow all
   const auth = request.headers.get("authorization") || "";
-  return auth === `Bearer ${env.API_KEY}`;
+  return timingSafeEqual(auth, `Bearer ${env.API_KEY}`);
 }
 
 /**
@@ -77,6 +101,18 @@ export function createWorker({ sessions: injectedSessions } = {}) {
     }
     if (!user_message || typeof user_message !== "string") {
       return json({ error: "user_message is required" }, { status: 400 });
+    }
+    if (session_id.length > MAX_SESSION_ID_CHARS) {
+      return json(
+        { error: "session_id too long", max_chars: MAX_SESSION_ID_CHARS },
+        { status: 400 }
+      );
+    }
+    if (user_message.length > MAX_USER_MESSAGE_CHARS) {
+      return json(
+        { error: "user_message too long", max_chars: MAX_USER_MESSAGE_CHARS },
+        { status: 413 }
+      );
     }
 
     const analysis = analyzeMessage(user_message);
@@ -137,7 +173,15 @@ export function createWorker({ sessions: injectedSessions } = {}) {
     });
   }
 
-  async function handleGetSession(sessionId, env) {
+  async function handleGetSession(request, sessionId, env) {
+    // Same gate as handleTurn. This endpoint returns the full transcript —
+    // disclosures and any PII in them — so leaving it open while the write
+    // path was authenticated meant a configured API_KEY protected nothing:
+    // session ids are caller-chosen and therefore guessable.
+    if (!authorized(request, env)) {
+      return json({ error: "unauthorized" }, { status: 401 });
+    }
+
     const session = await storeFor(env).get(sessionId);
     if (!session) {
       return json({ error: "session_not_found" }, { status: 404 });
@@ -176,7 +220,7 @@ export function createWorker({ sessions: injectedSessions } = {}) {
 
       const sessionMatch = url.pathname.match(/^\/v1\/session\/([^/]+)$/);
       if (sessionMatch && request.method === "GET") {
-        return handleGetSession(decodeURIComponent(sessionMatch[1]), env);
+        return handleGetSession(request, decodeURIComponent(sessionMatch[1]), env);
       }
 
       return json({ error: "not_found" }, { status: 404 });

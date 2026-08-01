@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createWorker } from "./index.js";
 import { SessionObject } from "./session-object.js";
-import { createDurableSessionStore } from "./sessions.js";
+import { createDurableSessionStore, createSessionStore } from "./sessions.js";
 
 // A stand-in for the Durable Object runtime: real SessionObject instances over
 // an in-process storage map, addressed by name exactly as the platform does.
@@ -262,4 +262,27 @@ test("session_store reports an injected store, which wins over the binding", asy
   assert.equal(body.session_store, "injected");
   assert.equal(body.turn, 4);
   assert.deepEqual(ns.created, []); // the binding was never touched
+});
+
+// --- In-memory store bounds --------------------------------------------------
+
+test("the in-memory store evicts least-recently-used sessions past its cap", async () => {
+  const store = createSessionStore({ maxSessions: 3 });
+  for (const id of ["a", "b", "c"]) {
+    store.applyTurn(id, { sentimentScore: 0, isCrisis: false, userMessage: "u", assistantReply: "a" });
+  }
+  // Touching "a" makes "b" the oldest, so "b" is what a fourth session evicts.
+  store.getOrCreate("a");
+  store.applyTurn("d", { sentimentScore: 0, isCrisis: false, userMessage: "u", assistantReply: "a" });
+
+  assert.equal(store.get("b"), undefined, "expected the least-recently-used session to be evicted");
+  for (const id of ["a", "c", "d"]) assert.ok(store.get(id), `expected ${id} to be retained`);
+});
+
+test("an existing session is not reset by being touched", async () => {
+  const store = createSessionStore({ maxSessions: 2 });
+  store.applyTurn("keep", { sentimentScore: -1, isCrisis: true, userMessage: "u", assistantReply: "a" });
+  store.getOrCreate("keep");
+  assert.equal(store.get("keep").turnCount, 1);
+  assert.equal(store.get("keep").crisisTurnCount, 1);
 });

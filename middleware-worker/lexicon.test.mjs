@@ -219,3 +219,47 @@ test("characterization: quoted first-person speech is still read as a disclosure
   const r = analyzeMessage('She texted me "I want to kill myself" last night');
   assert.equal(r.crisis_context, "first_person");
 });
+
+// --- Formatting normalisation ------------------------------------------------
+
+test("a disclosure is detected through ordinary formatting variation", () => {
+  // None of these are evasion attempts — they are how people type. Each was
+  // missed by literal substring matching while the plain sentence matched.
+  for (const text of [
+    "I want to kill myself",
+    "I want to kill  myself",
+    "I want to kill-myself",
+    "I want to kill\nmyself",
+    "I want to kill\tmyself",
+    "I want to KILL   MYSELF",
+  ]) {
+    const r = analyzeMessage(text);
+    assert.equal(r.crisis_context, "first_person", `missed: ${JSON.stringify(text)}`);
+    assert.ok(r.flags.includes("crisis_language"), `unflagged: ${JSON.stringify(text)}`);
+  }
+});
+
+test("normalisation does not join across sentence boundaries", () => {
+  // "." is deliberately left alone: collapsing it would invent a phrase that
+  // spans two sentences and flag a message that disclosed nothing.
+  const r = analyzeMessage("That bug was hard to kill. Myself, I would have waited.");
+  assert.equal(r.crisis_context, null);
+  assert.deepEqual(r.flags, []);
+});
+
+test("phone numbers survive normalisation, which only applies to phrase matching", () => {
+  // PII detection runs on the raw text — the separators normalisation
+  // collapses are exactly what phone numbers are written with.
+  for (const text of ["call me at 555-123-4567", "call me at 555 123 4567"]) {
+    assert.ok(analyzeMessage(text).flags.includes("pii_detected"), text);
+  }
+  assert.equal(analyzeMessage("email bob@example.com").pii.emails, 1);
+});
+
+test("email scanning stays linear on a long run with no @", () => {
+  // Regression guard for quadratic backtracking: an unbounded local-part
+  // quantifier made this input take minutes of uninterruptible CPU.
+  const started = Date.now();
+  analyzeMessage("a".repeat(50000));
+  assert.ok(Date.now() - started < 1000, "email scan is superlinear again");
+});

@@ -28,19 +28,39 @@ export function newSession() {
   };
 }
 
-export function createSessionStore() {
+// Ceiling on distinct sessions held in memory. Session ids come from the
+// caller, so an unbounded Map grows with the number of ids anyone cares to
+// send. Eviction is least-recently-used: a Map iterates in insertion order,
+// so re-inserting on every touch keeps the oldest entry first.
+//
+// This bound exists only on the in-memory fallback. The Durable Object path
+// persists per session and is not subject to it — which is the reason to
+// prefer a binding for anything real, since an evicted session silently
+// restarts from turn zero, crisis count included.
+export const MAX_SESSIONS = 10000;
+
+export function createSessionStore({ maxSessions = MAX_SESSIONS } = {}) {
   const sessions = new Map();
+
+  function touch(sessionId, session) {
+    sessions.delete(sessionId);
+    sessions.set(sessionId, session);
+    if (sessions.size > maxSessions) {
+      sessions.delete(sessions.keys().next().value);
+    }
+    return session;
+  }
+
   return {
     getOrCreate(sessionId) {
-      if (!sessions.has(sessionId)) sessions.set(sessionId, newSession());
-      return sessions.get(sessionId);
+      return touch(sessionId, sessions.get(sessionId) ?? newSession());
     },
     get(sessionId) {
       return sessions.get(sessionId);
     },
     applyTurn(sessionId, delta) {
-      if (!sessions.has(sessionId)) sessions.set(sessionId, newSession());
-      return recordTurn(sessions.get(sessionId), delta);
+      const session = touch(sessionId, sessions.get(sessionId) ?? newSession());
+      return recordTurn(session, delta);
     },
   };
 }
