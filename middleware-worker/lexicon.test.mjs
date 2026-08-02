@@ -219,3 +219,130 @@ test("characterization: quoted first-person speech is still read as a disclosure
   const r = analyzeMessage('She texted me "I want to kill myself" last night');
   assert.equal(r.crisis_context, "first_person");
 });
+
+// --- Subject resolution: who the crisis vocabulary is actually about ---------
+//
+// The classifier previously scanned the whole message for a third-party marker
+// and checked it before any first-person marker. Bare pronouns are everywhere,
+// so a disclosure carrying one anywhere — including after the disclosure, about
+// someone entirely incidental — was read as concern for that other person:
+// severity dropped high -> medium, the directive told the model not to treat
+// the user as personally at risk, and crisis_turn_count never incremented, so
+// repeated-crisis escalation could never fire for that user.
+
+test("an incidental third-person pronoun does not downgrade a disclosure", () => {
+  for (const msg of [
+    "I am suicidal and she knows",
+    "I am suicidal, they left me",
+    "I am suicidal because of him",
+    "I am suicidal because my brother died last year",
+    "I've been suicidal since the divorce, my wife left",
+    "I want to self-harm, their words hurt",
+  ]) {
+    assert.equal(analyzeMessage(msg).crisis_context, "first_person", msg);
+  }
+});
+
+test("a named third party before the vocabulary still wins", () => {
+  for (const msg of [
+    "my friend is suicidal and I am worried",
+    "someone I know is suicidal",
+    "I think my brother is suicidal",
+    "he told me he's suicidal",
+  ]) {
+    assert.equal(analyzeMessage(msg).crisis_context, "third_party", msg);
+  }
+});
+
+test("a subject trailing its predicate is still resolved", () => {
+  assert.equal(analyzeMessage("suicidal thoughts have been with me all week").crisis_context, "first_person");
+  assert.equal(
+    analyzeMessage("suicide is what she has been talking about all week").crisis_context,
+    "third_party"
+  );
+});
+
+// --- Topic framing must be tied to the topic word ---------------------------
+
+test("ordinary words no longer reclassify a disclosure as subject matter", () => {
+  // "class", "book", "paper", "study", "survey" are everyday vocabulary. Any
+  // of them anywhere in the message used to turn a live disclosure into a
+  // topic_mention, which is an `allow` carrying a directive that explicitly
+  // instructs the model *not* to surface crisis resources.
+  for (const msg of [
+    "I'm suicidal, I can't focus in class",
+    "I'm suicidal and I can't finish this paper",
+    "I feel suicidal, I've been reading a book about grief",
+    "I want to self-harm, the survey at work was the last straw",
+    "I'm suicidal, my study group doesn't know",
+  ]) {
+    assert.equal(analyzeMessage(msg).crisis_context, "first_person", msg);
+  }
+});
+
+test("framing tied to the topic word still reads as subject matter", () => {
+  for (const msg of [
+    "I am researching suicide prevention policy",
+    "I am writing a paper on suicide statistics",
+    "my dissertation on self-harm is due",
+    "the documentary about suicide was hard to watch",
+  ]) {
+    assert.equal(analyzeMessage(msg).crisis_context, "topic_mention", msg);
+  }
+});
+
+// --- Vocabulary carrying no subject of its own ------------------------------
+
+test("ambiguous crisis phrases resolve by subject rather than assuming either", () => {
+  assert.equal(analyzeMessage("I don't want to be here anymore").crisis_context, "first_person");
+  assert.equal(analyzeMessage("my friend doesn't want to be here anymore").crisis_context, "third_party");
+  assert.equal(analyzeMessage("she says she'd be better off dead").crisis_context, "third_party");
+});
+
+test("an ambiguous phrase with no subject at all defaults to the riskier reading", () => {
+  // "no reason to live" names nobody, and neither does the rest of the
+  // sentence. A missed disclosure costs more than an unnecessary offer.
+  assert.equal(analyzeMessage("there is no reason to live anymore").crisis_context, "first_person");
+});
+
+test("phrasings that previously passed through unflagged are detected", () => {
+  for (const msg of [
+    "I don't want to be here anymore",
+    "I don't want to wake up tomorrow",
+    "I'm going to take my own life",
+    "I want to off myself",
+    "I've been thinking about unaliving myself",
+    "I just want to end it all",
+  ]) {
+    const r = analyzeMessage(msg);
+    assert.ok(r.flags.includes("crisis_language"), msg);
+    assert.equal(r.crisis_context, "first_person", msg);
+  }
+});
+
+test("'off myself' does not fire on ordinary use of the same words", () => {
+  // The phrase is listed as "to off myself" precisely so this stays clean.
+  assert.deepEqual(analyzeMessage("I finished it off myself").flags, []);
+});
+
+// --- Intensity is magnitude, not density ------------------------------------
+
+test("intensity does not fall as the user writes more about the same feelings", () => {
+  // Intensity used to divide by token count, so explaining yourself lowered it
+  // — and policy.js gates softening on an intensity floor, which meant the
+  // longer and more vulnerable the message, the less likely it was answered
+  // with empathy.
+  const short = analyzeMessage("I feel sad and hopeless");
+  const long = analyzeMessage(
+    "I feel sad and hopeless about everything that has happened to me this year, and honestly " +
+      "I do not know who to talk to about it anymore because everyone around me seems busy with " +
+      "their own lives and I do not want to be a burden on any of them."
+  );
+  assert.equal(long.intensity, short.intensity);
+  assert.ok(long.intensity >= 0.3, "must clear the soften threshold in policy.js");
+});
+
+test("intensity still scales with how much affect is present", () => {
+  assert.ok(analyzeMessage("I feel sad").intensity < analyzeMessage("I feel sad, empty and hopeless").intensity);
+  assert.equal(analyzeMessage("the cat sat on the mat").intensity, 0);
+});

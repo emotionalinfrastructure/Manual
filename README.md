@@ -43,10 +43,8 @@ locally.
 
 ### Crisis language is answered proportionately
 
-Detection is deliberately broad — a missed disclosure costs far more than an
-unnecessary offer of support — so anything in the crisis vocabulary raises
-`crisis_language`. What varies is the response, driven by `crisis_context`:
-*who* the language refers to.
+Anything in the crisis vocabulary raises `crisis_language`. What varies is the
+response, driven by `crisis_context`: *who* the language refers to.
 
 | `crisis_context` | example | action | severity |
 |---|---|---|---|
@@ -63,10 +61,83 @@ no crisis vocabulary is present.
 boundary exists to catch a user's own escalating risk, so asking about a
 friend across several turns never accumulates toward it.
 
-Two limits worth knowing: quoted speech (`she texted me "I want to kill
-myself"`) is read as a first-person disclosure, left deliberately conservative
-because substring matching cannot reliably separate quotation from disclosure;
-and third-person detection covers common phrasings, not all of them.
+#### How much this actually catches
+
+**Recall is partial, and that is the honest headline.** The vocabulary is a
+few dozen literal phrases, so it catches the phrasings it lists and nothing
+else. On a hand-written sample of 19 plainly-phrased first-person disclosures
+it escalates 11. It reliably catches explicit statements —
+
+> "I want to kill myself", "I'm going to take my own life", "there's no reason
+> to live", "I don't want to be here anymore", "I'd be better off dead"
+
+— and reliably misses indirect ones, which is how a great many real
+disclosures are phrased:
+
+> "I've been thinking about ending it", "I have a plan and I've written the
+> note", "I've been stockpiling my pills", "nobody would miss me if I was
+> gone", "I'm ready to go", "kms"
+
+Each of those returns `action: "allow"`, `sentiment_score: 0` and
+`primary_emotion: "neutral"`. Anything routing real users must put a reviewed
+detection service in front of this list, not tune the list.
+
+Three further limits worth knowing:
+
+- Quoted speech (`she texted me "I want to kill myself"`) reads as a
+  first-person disclosure. Left deliberately conservative — substring matching
+  cannot reliably separate quotation from disclosure, and over-offering support
+  is the safe error.
+- Detection is English-only, and matches on substrings rather than words, so
+  coverage of other languages is accidental where it exists at all.
+- Third-person detection covers common phrasings, not all of them.
+
+#### Who the vocabulary is about
+
+Phrases that name their own subject settle the question by themselves: `kill
+myself` is always a disclosure, `kill herself` is always about someone else.
+The rest — `no reason to live`, `better off dead`, and the bare topic words
+`suicide` / `suicidal` / `self-harm` — name nobody, so the subject is resolved
+from the text *preceding* the match. An explicitly named person (`my brother`,
+`someone`) wins outright; otherwise the nearest preceding subject decides;
+with no subject anywhere, an explicit phrase falls to the riskier reading and a
+bare topic word falls to subject matter.
+
+Reading only what precedes the match matters more than it sounds. Bare pronouns
+are ubiquitous, so scanning the whole message meant that a pronoun appearing
+*after* a disclosure, about someone entirely incidental, reclassified it as
+concern for that person — `I am suicidal because my brother died` dropped from
+high to medium severity, the directive told the model not to treat the user as
+personally at risk, and `crisis_turn_count` never incremented, so
+repeated-crisis escalation could never fire for that user.
+
+Academic framing reclassifies a bare topic word only when it is *tied* to that
+word (`researching suicide`, `a paper on suicide`, `suicide statistics`) — one
+space or one preposition. Matching a framing word anywhere in the message meant
+ordinary vocabulary (`class`, `book`, `this paper`) turned live disclosures
+into topic mentions, and a topic mention carries a directive that explicitly
+tells the model *not* to surface crisis resources.
+
+### What `emotional_state` is, and is not
+
+`emotional_state` reads like a measurement. It is a word count, and the
+limits are worth stating plainly before anyone builds on the numbers:
+
+- **No negation.** `I am not happy at all` scores `+1.0` / `joy`; `I'm not sad`
+  scores `-1.0` / `sadness`.
+- **No morphology.** The lexicon matches whole tokens against ~45 listed words,
+  so `depressed` is scored and `depression` is not; `anxiety`, `worrying`,
+  `devastated`, `numb` and `exhausted` are all `neutral`.
+- **`sentiment_score` is a ratio of hits, not a scale.** In practice it is
+  almost always exactly `-1`, `0` or `+1`. `session_trend` thresholds changes in
+  it at ±0.15, so treat the trend as a coarse hint rather than a signal.
+- **`primary_emotion` ties break by declaration order** — `happy sad` is `joy`.
+
+`intensity` is deliberately *not* a density: it saturates at three affective
+hits regardless of message length. Dividing by token count made the same
+distress score lower the more the user explained it, and because the soften
+rule has an intensity floor, writing at length about your feelings was what
+stopped the middleware responding to them.
 
 - **`middleware-worker/lexicon.js`** — rule-based emotion/sentiment scoring,
   crisis/abuse/PII detection, and crisis-context classification. Deterministic,

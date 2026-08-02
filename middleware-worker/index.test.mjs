@@ -424,3 +424,37 @@ test("safety.crisis_context is null when no crisis vocabulary is present", async
   const { body } = await turn("cc4", "thanks, that was helpful");
   assert.equal(body.safety.crisis_context, null);
 });
+
+test("a disclosure mentioning another person still counts toward repeated crisis", async () => {
+  // End-to-end guard on the worst consequence of misreading the subject.
+  // crisis_turn_count only increments for first_person, and the repeated-crisis
+  // rule reads that counter — so classifying "I am suicidal because my brother
+  // died" as concern for the brother meant this user could disclose every turn
+  // and never be treated as an ongoing concern.
+  const { body: first } = await turn("rc1", "I am suicidal because my brother died last year");
+  assert.equal(first.safety.crisis_context, "first_person");
+  assert.equal(first.safety.severity, "high");
+  assert.equal(first.crisis_turn_count, 1);
+
+  const { body: second } = await turn("rc1", "I'm suicidal and I can't tell her about it");
+  assert.equal(second.crisis_turn_count, 2);
+
+  // With two prior first-person turns on record, even an unremarkable message
+  // is now treated as an ongoing concern.
+  const { body: third } = await turn("rc1", "anyway, what is the weather like");
+  assert.equal(third.safety.action, "escalate");
+  assert.match(third.suggested_system_directive, /ongoing/);
+});
+
+test("a long, explanatory account of distress is still softened", async () => {
+  // The soften rule gates on intensity, which used to be a density measure.
+  // Writing more about the same feelings pushed a message below the threshold.
+  const { body } = await turn(
+    "len1",
+    "I feel sad and hopeless about everything that has happened to me this year, and honestly " +
+      "I do not know who to talk to about it anymore because everyone around me seems busy " +
+      "with their own lives and I do not want to be a burden on any of them."
+  );
+  assert.equal(body.safety.action, "soften");
+  assert.match(body.suggested_system_directive, /Lead with empathy/);
+});
