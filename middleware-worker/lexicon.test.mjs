@@ -113,6 +113,55 @@ test("detects a phone number as PII", () => {
   assert.equal(r.pii.emails, 0);
 });
 
+test("supported phone formats (parenthesised, +country) are detected", () => {
+  for (const s of ["reach me on (555) 123-4567", "my number is +1 555 123 4567"]) {
+    const r = analyzeMessage(s);
+    assert.equal(r.pii.phones, 1, `expected a phone in: ${s}`);
+    assert.ok(r.flags.includes("pii_detected"));
+  }
+});
+
+// --- Phone-number false positives (CHARACTERIZATION of a known defect) -------
+//
+// KNOWN DEFECT (documented, not fixed here): PHONE_RE = /\b(\+?\d[\d\s().-]{7,}\d)\b/g
+// matches any long run of digits/separators, so non-phone numeric identifiers
+// are misclassified as phone PII. These tests PIN the current (incorrect)
+// behavior so a future regex fix is a deliberate, reviewed change. Do NOT
+// "fix" them by editing the assertions; a corrected regex should flip the
+// four DEFECT cases to 0 in the same change that discloses it.
+
+test("DEFECT: an order number is misclassified as a phone (false positive)", () => {
+  const r = analyzeMessage("my order number is 100002345678");
+  assert.equal(r.pii.phones, 1); // should be 0 once the regex is narrowed
+  assert.ok(r.flags.includes("pii_detected"));
+});
+
+test("DEFECT: a bare date is misclassified as a phone (false positive)", () => {
+  const r = analyzeMessage("the date was 2026-07-22");
+  assert.equal(r.pii.phones, 1); // should be 0
+});
+
+test("DEFECT: a long numeric id is misclassified as a phone (false positive)", () => {
+  const r = analyzeMessage("user id 123456789012345");
+  assert.equal(r.pii.phones, 1); // should be 0
+});
+
+test("DEFECT: an ISBN-like value is misclassified as a phone (false positive)", () => {
+  const r = analyzeMessage("isbn 978-0-13-468599-1");
+  assert.equal(r.pii.phones, 1); // should be 0
+});
+
+test("a short formatted value below the digit threshold is NOT a phone (correct)", () => {
+  const r = analyzeMessage("extension 12-34");
+  assert.equal(r.pii.phones, 0);
+  assert.ok(!r.flags.includes("pii_detected"));
+});
+
+test("a timestamp broken by a 'T' separator is not one phone run (correct)", () => {
+  const r = analyzeMessage("event at 2026-07-22T12:00:00");
+  assert.equal(r.pii.phones, 0);
+});
+
 // --- Overlapping / multiple signal classes ----------------------------------
 
 test("a message carrying crisis, abuse and negative sentiment flags all applicable classes", () => {
