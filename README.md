@@ -91,7 +91,8 @@ and third-person detection covers common phrasings, not all of them.
   Object: one instance per conversation, holding its state and applying each
   completed turn atomically.
 - **`middleware-worker/index.js`** — the Worker's HTTP surface (`/v1/turn`,
-  `/v1/session/:id`, CORS, optional `API_KEY` bearer auth).
+  `/v1/session/:id`, CORS, optional `API_KEY` bearer auth, and the request
+  size limits below).
 
 ### Session storage
 
@@ -130,10 +131,42 @@ from a read taken before the model call, so two genuinely simultaneous turns in
 one conversation can each decide against the same prior state. The recorded
 counts stay correct; only the decision input is momentarily stale.)
 
+### Auth and request limits
+
+`API_KEY` is optional: unset, the Worker runs in demo mode and takes any
+request. Set, it gates **both** endpoints — `POST /v1/turn` and
+`GET /v1/session/:id` alike — via `Authorization: Bearer <key>`.
+
+The read path matters as much as the write path here. `/v1/session/:id`
+returns the whole transcript, disclosures and any PII in them included, and
+session ids are chosen by the caller rather than issued by the server, so a
+guessable id is the only thing standing between a stranger and a
+conversation. Anything handling real users wants the key set.
+
+Two caller-controlled inputs are bounded, because analysis cost scales with
+length and nothing can interrupt a scan once it starts:
+
+| input | limit | over it |
+|---|---|---|
+| `user_message` | 8192 chars | `413 user_message too long` |
+| `session_id` | 200 chars | `400 session_id too long` |
+
+The in-memory store is likewise capped, at 10,000 sessions, evicting the
+least recently used past that. The Durable Object path has no such cap —
+another reason to declare the binding for anything real, since an evicted
+session silently restarts from turn zero, crisis count included.
+
 This is a demo-grade rule engine, not a clinical risk model — the crisis
 phrase list is narrow and literal by design. A production deployment should
 route flagged messages to a reviewed detection service rather than relying on
 a keyword list.
+
+Phrase matching normalises formatting first, so ordinary typing — a double
+space, a hyphen, a phrase broken across a line — reads the same as the plain
+sentence. That is the limit of what normalisation buys: synonyms ("take my
+own life"), homoglyphs, and method disclosures are outside the vocabulary and
+are not detected. Widening it is the clinical work above, not a matching
+problem.
 
 ## Run the demo
 
@@ -159,6 +192,9 @@ curl -X POST http://localhost:8787/v1/turn \
 
 curl http://localhost:8787/v1/session/demo-123
 ```
+
+(Both work unauthenticated only because the local demo sets no `API_KEY`.
+With one set, each needs `-H "Authorization: Bearer <key>"`.)
 
 Try messages like `"I feel so sad and hopeless"` (soften), `"I want to kill
 myself"` (escalate, with crisis resources injected into the directive), and
@@ -189,7 +225,7 @@ whole demo.
 ```bash
 cd middleware-worker
 npx wrangler deploy
-npx wrangler secret put API_KEY             # optional; unset = demo mode, no auth required
+npx wrangler secret put API_KEY             # optional; unset = demo mode, no auth on either endpoint
 npx wrangler secret put ANTHROPIC_API_KEY   # optional; unset = simulated replies
 ```
 
