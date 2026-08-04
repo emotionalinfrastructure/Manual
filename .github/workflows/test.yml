@@ -28,3 +28,15 @@ jobs:
       # declared in the test:coverage script, so a regression fails CI.
       - name: Run tests with coverage thresholds
         run: npm run test:coverage
+
+      # Scores the detector against benchmark/data/. Exits non-zero on a
+      # regression — an item failing that is neither a documented design
+      # limitation nor a tracked open defect. Known gaps and open defects are
+      # reported without failing the build; see benchmark/README.md.
+      - name: Score the disclosure detection benchmark
+        run: npm run benchmark
+
+      # The committed report is generated. If scoring changed it, the checked-in
+      # numbers are stale and the commit needs regenerating.
+      - name: Fail if the committed benchmark report is out of date
+        run: git diff --exit-code ../benchmark/results/

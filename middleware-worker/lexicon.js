@@ -36,13 +36,21 @@ const NEGATIVE_WORDS = new Set([
 
 // Inherently self-referential: the phrase itself names the speaker, so a match
 // is a disclosure no matter what surrounds it.
+//
+// Progressive forms are listed alongside every base form. Substring matching has
+// no morphology, so an absent "-ing" is an absent detection, and the omission is
+// invisible: "I hurt myself" escalated while "I have been hurting myself" —
+// ongoing self-harm, stated plainly — raised no flag at all and returned
+// action "allow". Any phrase added here needs its progressive added with it.
 export const SELF_REFERENTIAL_CRISIS_PHRASES = [
   "kill myself",
   "killing myself",
   "end my life",
   "ending my life",
   "hurt myself",
+  "hurting myself",
   "harm myself",
+  "harming myself",
   "take my own life",
   "taking my own life",
   "to off myself", // "to" keeps "I finished it off myself" from matching
@@ -64,15 +72,27 @@ export const THIRD_PARTY_CRISIS_PHRASES = [
   "end her life",
   "end his life",
   "end their life",
+  "ending her life",
+  "ending his life",
+  "ending their life",
   "hurt herself",
   "hurt himself",
   "hurt themselves",
+  "hurting herself",
+  "hurting himself",
+  "hurting themselves",
   "harm herself",
   "harm himself",
   "harm themselves",
+  "harming herself",
+  "harming himself",
+  "harming themselves",
   "take her own life",
   "take his own life",
   "take their own life",
+  "taking her own life",
+  "taking his own life",
+  "taking their own life",
 ];
 
 // Unmistakably crisis vocabulary, but carrying no subject of its own: "no

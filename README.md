@@ -10,6 +10,8 @@ generates the reply.
 frontend/            Static demo chat UI (vanilla HTML/CSS/JS)
 middleware-worker/    Cloudflare Worker implementing POST /v1/turn, and
                       serving frontend/ as static assets from the same origin
+benchmark/            Labeled corpus + scoring harness measuring how much of
+                      the detector's claimed recall is actually there
 ```
 
 The Worker is configured (`middleware-worker/wrangler.toml`'s `[assets]`
@@ -65,8 +67,22 @@ friend across several turns never accumulates toward it.
 
 **Recall is partial, and that is the honest headline.** The vocabulary is a
 few dozen literal phrases, so it catches the phrasings it lists and nothing
-else. On a hand-written sample of 19 plainly-phrased first-person disclosures
-it escalates 11. It reliably catches explicit statements —
+else.
+
+This is now measured rather than asserted. [`benchmark/`](benchmark/) holds a
+versioned, labeled corpus and a scoring harness that runs in CI; current results
+are in [`benchmark/results/open-v0.1.md`](benchmark/results/open-v0.1.md).
+
+| | escalation recall |
+|---|---|
+| First-person disclosures, **explicitly** phrased | 100% (15/15) |
+| First-person disclosures, **indirectly** phrased | **0% (0/6)** |
+| Anyone at risk, including third-party concern | 81% (25/31) |
+| False positives on benign controls | 0% (0/10) |
+
+The gap between those first two rows is the whole story, and it is why a single
+blended recall number is worse than useless here. It reliably catches explicit
+statements —
 
 > "I want to kill myself", "I'm going to take my own life", "there's no reason
 > to live", "I don't want to be here anymore", "I'd be better off dead"
@@ -82,8 +98,27 @@ Each of those returns `action: "allow"`, `sentiment_score: 0` and
 `primary_emotion: "neutral"`. Anything routing real users must put a reviewed
 detection service in front of this list, not tune the list.
 
-Three further limits worth knowing:
+Building that corpus immediately found a defect 128 unit tests had not:
+substring matching has no morphology, so an absent `-ing` is an absent
+detection. `hurt myself` was listed and `hurting myself` was not, and the
+third-party list carried no progressive forms at all — so `I have been hurting
+myself` and `my sister is hurting herself` raised **no flag whatsoever** and
+returned `allow`. Fixed, and the corpus now guards the whole class. That is the
+argument for the benchmark in one paragraph: the misses you have written down
+are not the dangerous ones.
 
+Four further limits worth knowing:
+
+- **Academic framing only works when it is adjacent to the topic word.**
+  `TOPIC_FRAMING_TERMS` includes `dissertation`, `seminar` and `counsellor
+  training`, but the link between framing and topic is one space or one
+  preposition — so `my dissertation is about self-harm` and `we covered
+  self-harm in my counsellor training` escalate as *personal disclosures*.
+  Terms added specifically to prevent false escalation are unreachable in
+  ordinary phrasing. Tracked as `open_defect: framing-adjacency`; unfixed
+  because widening the link risks reintroducing the regression described below,
+  where a framing word matching anywhere suppressed crisis resources for a real
+  disclosure.
 - Quoted speech (`she texted me "I want to kill myself"`) reads as a
   first-person disclosure. Left deliberately conservative — substring matching
   cannot reliably separate quotation from disclosure, and over-offering support
@@ -213,9 +248,14 @@ that also runs directly under Node.
 
 ```bash
 cd middleware-worker
-npm run test   # unit tests for the scoring/policy logic
-npm run dev    # starts the whole demo on http://localhost:8787
+npm run test        # unit tests for the scoring/policy logic
+npm run benchmark   # scores the detector against benchmark/data/
+npm run dev         # starts the whole demo on http://localhost:8787
 ```
+
+`npm run benchmark` regenerates `benchmark/results/open-v0.1.md` and exits
+non-zero on a regression — an item failing that is neither a documented design
+limitation nor a tracked open defect. Both run in CI.
 
 Open `http://localhost:8787/` in a browser — that one server serves the chat
 UI and the `/v1/turn` API it calls. The "API base URL" field on the page can

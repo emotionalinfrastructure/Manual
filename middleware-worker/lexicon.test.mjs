@@ -346,3 +346,29 @@ test("intensity still scales with how much affect is present", () => {
   assert.ok(analyzeMessage("I feel sad").intensity < analyzeMessage("I feel sad, empty and hopeless").intensity);
   assert.equal(analyzeMessage("the cat sat on the mat").intensity, 0);
 });
+
+// Regression: substring matching has no morphology, so every base phrase needs
+// its progressive listed alongside it. "hurt myself" was present and "hurting
+// myself" was not, and the third-party list carried no progressives at all, so
+// plainly-stated ongoing self-harm raised no flag and returned action "allow".
+// Found by benchmark/, not by the unit suite — hence this test.
+test("progressive forms of crisis phrases are detected, not just the base form", () => {
+  for (const text of [
+    "I have been hurting myself",
+    "I have been harming myself for months",
+  ]) {
+    const analysis = analyzeMessage(text);
+    assert.ok(analysis.flags.includes("crisis_language"), `no crisis flag for: ${text}`);
+    assert.equal(analysis.crisis_context, "first_person", text);
+  }
+
+  for (const text of [
+    "my sister is hurting herself",
+    "she's been talking about ending her life",
+    "they are taking their own life",
+  ]) {
+    const analysis = analyzeMessage(text);
+    assert.ok(analysis.flags.includes("crisis_language"), `no crisis flag for: ${text}`);
+    assert.equal(analysis.crisis_context, "third_party", text);
+  }
+});
